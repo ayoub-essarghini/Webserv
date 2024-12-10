@@ -36,7 +36,7 @@ void Server::handleRequest(int client_sockfd) {
 
 string Server::processRequest(const Request& request) {
     if (request.getMethod() == "GET" && request.getPath() == "/") {
-        return "<html><body><h1>Welcome to the server!</h1></body></html>";
+        return "<html><body style='background-color:#333; color:white;'><h1>Welcome to the server!</h1></body></html>";
     } else {
         return "<html><body><h1>404 Not Found</h1></body></html>";
     }
