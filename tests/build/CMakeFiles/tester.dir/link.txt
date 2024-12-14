@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/tester.dir/Test.cpp.o -o tester   -L/home/aes-sarg/.local/lib  -Wl,-rpath,/home/aes-sarg/.local/lib -lgtest -lgtest_main libconfig.a 

@@ -4,5 +4,6 @@
         "map": "cpp",
         "string": "cpp",
         "iostream": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "/home/aes-sarg/Desktop/Webserv/tests"
 }

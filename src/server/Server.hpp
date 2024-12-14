@@ -3,6 +3,7 @@
 #include "../http/Socket.hpp"
 #include "../http/Request.hpp"
 #include "../http/Response.hpp"
+#include "../config/Config.hpp"
 #include <string>
 #include <map>
 
