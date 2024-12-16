@@ -3,7 +3,9 @@
         "*.c": "c",
         "map": "cpp",
         "string": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "ostream": "cpp",
+        "iosfwd": "cpp"
     },
     "cmake.sourceDirectory": "/home/aes-sarg/Desktop/Webserv/tests"
 }

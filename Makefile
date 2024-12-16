@@ -1,6 +1,6 @@
 NAME = Webserv
 CXX = c++
-CXXFLAGS = #-Wall -Wextra -Werror #-std=c++98
+CXXFLAGS = -g3 -fsanitize=address#-Wall -Wextra -Werror #-std=c++98
 
 # Use wildcard and recursion to find all .cpp files in the src directory and subdirectories
 SRCS = $(wildcard src/**/*.cpp) src/main.cpp

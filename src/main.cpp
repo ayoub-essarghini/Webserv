@@ -7,6 +7,7 @@ int main() {
         // server.start();
         Config config("src/Server.conf");
         config.parse();
+        
     } catch (const exception& e) {
         cerr << "Error: " << e.what() << endl;
     }

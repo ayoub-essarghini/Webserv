@@ -8,88 +8,79 @@ Config::Config(const string &config_file) : file_path(config_file), port(0) {}
 
 void Config::parse()
 {
-    ifstream file(file_path);
-    if (!file.is_open())
-    {
-        cerr << "Unable to open file" << endl;
-        return;
-    }
-
-    string line;
-    while (getline(file, line))
-    {
-        line = trim(line);
-        if (line.empty() || line[0] == '#')
-            continue;
-
-        if (line.find("server") == 0)
-        {
-            parseServer(file);
-        }
-    }
+    parseServer();
+    parseLocation();
     print_config();
 }
 
 void Config::print_config() const
 {
-    cout << "listen: " << port << endl;
-    cout << "Root: " << root << endl;
-    for (const auto &location : locations)
+    cout <<"server root : " << root <<endl;
+    cout << "server port "  << port << endl;
+    cout << "server name " << server_name << endl;
+
+    cout << "locations data :" << endl;
+    map<string,Location>::const_iterator locatIt = locations.begin();
+
+    while(locatIt!= locations.end())
     {
-        cout << "Location: " << location.first << endl;
-        cout << "Root: " << location.second.root << endl;
+        cout << locatIt->first << "\n";
+        cout << locatIt->second << endl;
+        locatIt++;
     }
+    cout << "error pages: " << endl;
+    map<int,string>::const_iterator errorpagesIt = error_pages.begin();
+    while (errorpagesIt != error_pages.end())
+    {
+        cout << errorpagesIt->first << errorpagesIt->second << endl;
+        errorpagesIt++;
+    }
+    
 }
 
-void Config::parseServer(istream &stream)
+void Config::parseServer()
 {
-    string line;
-    while (getline(stream, line))
-    {
-        line = trim(line);
-        if (line.empty() || line[0] == '#')
-            continue;
+    file_path = "";
+    port = 8080;
+    root = "/www/html";
+    server_name = "s1";
+    error_pages[404] = "/404.html";
+    error_pages[500] = "/500.html";
 
-        if (line.find("location") == 0)
-        {
-            string location_path = line.substr(8); 
-            parseLocation(stream, trim(location_path));
-        }
-        else if (line.find("listen") == 0)
-        {
-            port = stoi(line.substr(7)); 
-        }
-        else if (line.find("root") == 0)
-        {
-            root = trim(line.substr(4)); 
-        }
-        else if (line.find("}") == 0)
-        {
-            break;
-        }
-    }
+    index_files.push_back("index.html");
+    index_files.push_back("index.htm");
+    
+
 }
 
-void Config::parseLocation(istream &stream, const string &location_path)
+void Config::parseLocation()
 {
-    Location location;
-    string line;
-    while (getline(stream, line))
-    {
-        line = trim(line);
-        if (line.empty() || line[0] == '#')
-            continue;
+    Location l1;
+    l1.root = "/www/html";
+    l1.allow_methods.push_back("GET");
+    l1.allow_methods.push_back("POST");
 
-        if (line.find("root") == 0)
-        {
-            location.root = trim(line.substr(4));
-        }
-        else if (line.find("}") == 0)
-        {
-            break;
-        }
-    }
-    locations[location_path] = location;
+    l1.autoindex = false;
+    l1.index_files.push_back("index.html");
+    l1.client_max_body_size = 1024;
+
+
+
+    Location l2;
+    l2.root = "/www/uploads";
+    l2.allow_methods.push_back("POST");
+    l2.autoindex = false;
+    l2.client_max_body_size = 1024 * 5;
+    l2.upload_dir = "/www/uploads";
+
+    Location l3;
+    l3.redirect = "http://example.com";
+    l3.redirectCode = 301;
+
+    locations["/"] = l1;
+    locations["/uploads"] = l2;
+    locations["/redirect"] = l3;
+
 }
 
 int Config::getPort() const
@@ -110,13 +101,29 @@ const Location &Config::getLocation(const string &path) const
     return it->second;
 }
 
-string Config::trim(const string &str)
+
+ostream &operator<<(ostream& os,const Location& location)
 {
-    size_t first = str.find_first_not_of(" \t");
-    if (first == string::npos)
-        return "";
-    size_t last = str.find_last_not_of(" \t");
-    // if (last == ';' || last == '}')
-    //     last--;
-    return str.substr(first, last - first);
+    vector<string>::const_iterator it = location.allow_methods.begin();
+    while (it != location.allow_methods.end())
+    {
+        cout << "method:  "<< *it << endl; 
+        it++;
+    }
+    cout << location.root << endl;
+    cout << "auto index : " << location.autoindex << endl;
+    cout << "client max body size : " << location.client_max_body_size << endl;
+    vector<string>::const_iterator it2 = location.index_files.begin();
+
+        cout << "indexes: ";
+    while (it2 != location.index_files.end())
+    {
+        cout << *it2 << " ";
+        it2++;
+    }
+    cout << "redirect: " <<location.redirect << " ";
+    cout << "redirect code: " << location.redirectCode << endl;
+    
+
+    return os;
 }
