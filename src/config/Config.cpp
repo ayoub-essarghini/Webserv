@@ -10,7 +10,7 @@ void Config::parse()
 {
     parseServer();
     parseLocation();
-    print_config();
+    // print_config();
 }
 
 void Config::print_config() const
@@ -42,7 +42,7 @@ void Config::parseServer()
 {
     file_path = "";
     port = 8080;
-    root = "/www/html";
+    root = "www/";
     server_name = "s1";
     error_pages[404] = "/404.html";
     error_pages[500] = "/500.html";
@@ -56,7 +56,7 @@ void Config::parseServer()
 void Config::parseLocation()
 {
     Location l1;
-    l1.root = "/www/html";
+    l1.root = "www/";
     l1.allow_methods.push_back("GET");
     l1.allow_methods.push_back("POST");
 
@@ -67,7 +67,7 @@ void Config::parseLocation()
 
 
     Location l2;
-    l2.root = "/www/uploads";
+    l2.root = "www/uploads/";
     l2.allow_methods.push_back("POST");
     l2.autoindex = false;
     l2.client_max_body_size = 1024 * 5;

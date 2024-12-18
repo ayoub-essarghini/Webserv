@@ -1,7 +1,10 @@
 #include "Server.hpp"
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 
-Server::Server(int port) : server_socket(port) {}
+
+Server::Server(int port,Config& config) : server_socket(port) ,server_config(config){}
 
 void Server::start() {
     server_socket.bindSocket();
@@ -21,6 +24,7 @@ void Server::handleRequest(int client_sockfd) {
     if (bytes_read <= 0) return;
 
     buffer[bytes_read] = '\0';
+    cout << buffer << endl;
     Request request(buffer);
 
     string response_body = processRequest(request);
@@ -35,7 +39,34 @@ void Server::handleRequest(int client_sockfd) {
 }
 
 string Server::processRequest(const Request& request) {
-    if (request.getMethod() == "GET" && request.getPath() == "/") {
+    if (request.getMethod() == "GET" && !request.getPath().empty()) {
+
+        Location pathInfos = server_config.getLocation(request.getPath());
+
+        if (!pathInfos.index_files.empty())
+        {
+            vector<string>::const_iterator it = pathInfos.index_files.begin();
+            
+            string filename = "src/";
+            filename.append(pathInfos.root);
+            filename.append(*it);
+            ifstream index(filename);
+            if (!index)
+            {
+                throw runtime_error("Cannot open file");
+            }
+           string line;
+           string response;
+           while (getline(index,line))
+           {
+                response.append(line);
+           }
+           return response;
+        }
+
+
+
+
         return "<html><body style='background-color:#333; color:white;'><h1>Welcome to the server!</h1></body></html>";
     } else {
         return "<html><body><h1>404 Not Found</h1></body></html>";

@@ -11,11 +11,12 @@ using namespace std;
 
 class Server {
 public:
-    Server(int port);
+    Server(int port,Config& config);
     void start();
     
 private:
     Socket server_socket;
+    Config server_config;
     void handleRequest(int client_sockfd);
     string processRequest(const Request& request);
 };
