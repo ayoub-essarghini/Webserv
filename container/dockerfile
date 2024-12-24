@@ -1,0 +1,9 @@
+FROM debian:bullseye
+RUN apt update && apt upgrade -y
+RUN apt install nginx -y
+RUN apt install -y net-tools
+RUN apt install -y netcat
+RUN apt-get install -y procps
+RUN apt-get install -y vim
+COPY  ./scripts/interpoint.sh /
+ENTRYPOINT ["bash", "/interpoint.sh"]
