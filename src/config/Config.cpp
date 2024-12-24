@@ -97,7 +97,10 @@ const Location &Config::getLocation(const string &path) const
 {
     map<string, Location>::const_iterator it = locations.find(path);
     if (it == locations.end())
-        throw runtime_error("Location not found: " + path);
+    {
+        static Location location;
+        return location;
+    }
     return it->second;
 }
 

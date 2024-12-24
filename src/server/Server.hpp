@@ -19,5 +19,9 @@ private:
     Config server_config;
     void handleRequest(int client_sockfd);
     string processRequest(const Request& request);
+    string handleGet(const Request& request);
+    string notFound();
+    string forbidden();
+    string requestToParse;
 };
 
