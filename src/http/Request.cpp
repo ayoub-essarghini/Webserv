@@ -10,10 +10,10 @@ Request::Request(const string& request) {
 void Request::parseRequest(const string& request) {
    
     stringstream ss(request);
-    string last;
+   
     ss >> method >> path >> version >> last;
-    if (!last.empty())
-        throw runtime_error("Invalid HTTP request format");
+    // if (!last.empty())
+    //     throw runtime_error("Invalid HTTP request format");
     if (method.empty() || path.empty() || version.empty()) {
         throw runtime_error("Invalid HTTP request format");
     }
@@ -22,8 +22,8 @@ void Request::parseRequest(const string& request) {
     bool hostExist = false;
     while (getline(ss, line) && !line.empty()) {
         if (line.empty()) break;
-        if (line.find("host:"))
-            hostExist = true;
+        // if (line.find("host:"))
+        //     hostExist = true;
         size_t pos = line.find(':');
         if (pos != string::npos) {
             string header_name = line.substr(0, pos);
@@ -31,8 +31,12 @@ void Request::parseRequest(const string& request) {
             headers[header_name] = header_value;
         }
     }
-    // if (!hostExist)
-    //     throw runtime_error("Host not exist !!");
+
+    
+}
+
+Location Request::getLocation(Request& request)
+{
     
 }
 

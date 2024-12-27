@@ -22,6 +22,7 @@ public:
     int getPort() const;
     const string& getRoot() const;
     const Location& getLocation(const string& path) const;
+    const map<string,Location> getLocations();
     void print_config() const;
 
 private:

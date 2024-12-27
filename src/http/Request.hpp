@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <map>
-
+#include "../src/config/Config.hpp"
 using namespace std;
 
 class Request {
@@ -16,7 +16,10 @@ private:
     string method;
     string path;
     string version;
+    string last;
     map<string, string> headers;
     void parseRequest(const string& request);
+    Location getLocation(Request& request);
+    
 };
 

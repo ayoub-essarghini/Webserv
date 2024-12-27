@@ -1,6 +1,7 @@
 #include "Server.hpp"
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 #include <iomanip>
 
 Server::Server(int port, Config &config) : server_socket(port), server_config(config) {}
@@ -35,6 +36,8 @@ void Server::handleRequest(int client_sockfd)
 
      response_body = processRequest(request);
 
+     cout << response_body << endl;
+
     Response response;
     response.setStatus(200, "OK");
     response.addHeader("Content-Type", "text/html");
@@ -47,7 +50,7 @@ void Server::handleRequest(int client_sockfd)
 string Server::processRequest(const Request &request)
 {
     
-        if (request.getMethod() == "GET" && !request.getPath().empty())
+        if (request.getMethod() == "GET")
             return this->handleGet(request);
         else
         {
@@ -56,30 +59,41 @@ string Server::processRequest(const Request &request)
 
 }
 
+
+
 string Server::handleGet(const Request &request)
 {
-    Location pathInfos = server_config.getLocation(request.getPath());
 
-    if (!pathInfos.index_files.empty())
-    {
-        vector<string>::const_iterator it = pathInfos.index_files.begin();
+  map<string, Location> locs = server_config.getLocations();
+  map<string, Location>::const_iterator it = locs.begin();
+    string url = request.getPath();
+    
+   
+    Location  bestMatch;
+    size_t bestMatchLength = 0;
 
-        string filename = "src/";
-        filename.append(pathInfos.root);
-        filename.append(*it);
-        ifstream index(filename);
-        if (!index)
-        {
-            throw runtime_error("Cannot open file");
+    bool found = false;
+
+    // Iterate through the map of locations
+    for (; it != locs.end(); it++) {
+        const string& locationPath = it->first;
+
+        // Check if the location is a prefix of the URL
+        if (url.find(locationPath) == 0) {
+            // If this match is longer than the previous best match, update it
+            if (locationPath.length() > bestMatchLength) {
+                found = true;
+                bestMatch = it->second;
+                bestMatchLength = locationPath.length();
+            }
         }
-        string line;
-        string response;
-        while (getline(index, line))
-        {
-            response.append(line);
-        }
-        return response;
     }
 
-    return "404";
+    if (found) {
+        cout << bestMatch << endl;
+        return "Found";
+    }
+
+
+    return "No match found.";
 }

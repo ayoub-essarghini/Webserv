@@ -56,7 +56,7 @@ void Config::parseServer()
 void Config::parseLocation()
 {
     Location l1;
-    l1.root = "www/";
+    l1.root = "testonly";
     l1.allow_methods.push_back("GET");
     l1.allow_methods.push_back("POST");
 
@@ -67,7 +67,7 @@ void Config::parseLocation()
 
 
     Location l2;
-    l2.root = "www/uploads/";
+    l2.root = "test/test2/";
     l2.allow_methods.push_back("POST");
     l2.autoindex = false;
     l2.client_max_body_size = 1024 * 5;
@@ -77,8 +77,8 @@ void Config::parseLocation()
     l3.redirect = "http://example.com";
     l3.redirectCode = 301;
 
-    locations["/"] = l1;
-    locations["/uploads"] = l2;
+    locations["/test"] = l1;
+    locations["/test/test2"] = l2;
     locations["/redirect"] = l3;
 
 }
@@ -102,6 +102,11 @@ const Location &Config::getLocation(const string &path) const
         return location;
     }
     return it->second;
+}
+
+const map<string,Location> Config::getLocations()
+{
+    return locations;
 }
 
 
