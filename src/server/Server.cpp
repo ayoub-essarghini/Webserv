@@ -59,8 +59,6 @@ string Server::processRequest(const Request &request)
 
 }
 
-
-
 string Server::handleGet(const Request &request)
 {
 

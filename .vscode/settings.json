@@ -5,7 +5,8 @@
         "string": "cpp",
         "iostream": "cpp",
         "ostream": "cpp",
-        "iosfwd": "cpp"
+        "iosfwd": "cpp",
+        "stdexcept": "cpp"
     },
     "cmake.sourceDirectory": "/home/aes-sarg/Desktop/Webserv/tests"
 }
