@@ -7,6 +7,10 @@ int main() {
         config.parse();
         Server server(8080,config);
         server.start();
+
+
+    
+
      
         
     } catch (const exception& e) {
