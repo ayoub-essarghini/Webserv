@@ -7,6 +7,11 @@ Socket::Socket(int port) : port(port)
     {
         throw runtime_error("Failed to create socket");
     }
+    int optval = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0)
+    {
+        throw std::runtime_error("Failed to set SO_REUSEADDR option");
+    }
 
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
@@ -20,11 +25,6 @@ Socket::~Socket()
 
 void Socket::bindSocket()
 {
-    int optval = 1;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0)
-    {
-        throw std::runtime_error("Failed to set SO_REUSEADDR option");
-    }
     if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
         throw runtime_error("Failed to bind socket");

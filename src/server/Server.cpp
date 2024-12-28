@@ -66,7 +66,7 @@ string Server::handleGet(const Request &request)
 
   map<string, Location> locs = server_config.getLocations();
   map<string, Location>::const_iterator it = locs.begin();
-    string url = request.getPath();
+    string url = request.getDecodedPath();
     
    
     Location  bestMatch;
@@ -79,7 +79,7 @@ string Server::handleGet(const Request &request)
         const string& locationPath = it->first;
 
         // Check if the location is a prefix of the URL
-        if (url.find(locationPath) == 0) {
+        if (url.find(locationPath) == 0 && (url == locationPath || url[locationPath.length()] == '/')) {
             // If this match is longer than the previous best match, update it
             if (locationPath.length() > bestMatchLength) {
                 found = true;
