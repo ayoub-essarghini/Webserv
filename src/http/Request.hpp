@@ -2,63 +2,54 @@
 
 #include <string>
 #include <map>
-#include <vector>
-#include <stdexcept>
+#include <set>
 
-using namespace std;
-
-
-class Request {
+class Request
+{
 public:
-    // Constructor to parse HTTP request
-    Request(const string& raw_request);
+    // Constructor
+    Request(const std::string &raw_request);
 
-    // Request line getters
-    const string& getMethod() const;
-    const string& getPath() const;
-    const string& getDecodedPath() const;
-    const string& getVersion() const;
-    const map<string, string>& getHeaders() const;
-    const string& getBody() const;
+    // Accessors for request components
+    const std::string &getMethod() const;
+    const std::string &getPath() const;
+    const std::string &getDecodedPath() const;
+    const std::string &getVersion() const;
+    const std::map<std::string, std::string> &getHeaders() const;
+    const std::string &getBody() const;
 
-    // Status checks
+    // Status accessors
     bool isValid() const;
-    string getStatusMessage() const;
+    std::string getStatusMessage() const;
 
 private:
     // Request components
-    string method;             // HTTP method (GET, POST, etc.)
-    string path;               // Raw URL path
-    string fragment;           // URL fragment
-    string decoded_path;       // Decoded URL path
-    string version;            // HTTP version
-    map<string, string> headers;  // Request headers
-    map<string, string> query_param;  // Query parameters
-    string body;               // Request body
+    std::string method;
+    std::string path;
+    std::string decoded_path;
+    std::string version;
+    std::map<std::string, std::string> headers;
+    std::string body;
 
-    // Status flags and messages
+    // Status flags
     bool validRequest;
-    string statusMessage;
+    std::string statusMessage;
 
-    // Parsing functions
-    void parseRequest(const string& request);
-    void parseRequestLine(const string& request, size_t& pos, size_t len);
-    void parseHeaders(const string& request, size_t& pos, size_t len);
-    void parseBody(const string& request, size_t& pos, size_t len);
+    // Parsing methods
+    void parseRequest(const std::string &request);
+    void parseRequestLine(const std::string &request, size_t &pos);
+    void parseHeaders(const std::string &request, size_t &pos);
+    void parseBody(const std::string &request, size_t &pos);
     void validateHeaders();
-    
-    // URL and path processing
-    string validatePath(const string& path);
-    
+    bool isBadUriTraversal(const std::string &uri);
+    bool isBadUri(const std::string &uri);
+    // Utility methods
+    std::string extractToken(const std::string &request, size_t &pos, char delimiter);
+    std::string validatePath(const std::string &path);
+    void validateMethod(const std::string &method);
+    void validateLineTermination(const std::string &request, size_t &pos);
     bool isHexDigit(char c);
     char hexToChar(char high, char low);
-    
-    void trim(string& str);
 
-    // Functions for HTTP method handling
-    string parseMethod(const string& request, size_t& pos, size_t len);
-    void validateMethod(const string& method);
+    std::string trim(const std::string &str);
 };
-
-
-

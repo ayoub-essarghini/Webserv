@@ -5,10 +5,10 @@
 #include <cctype>
 #include <algorithm>
 
-Request::Request(const string& request) {
+Request::Request(const std::string& request) {
     validRequest = false;
     statusMessage = "Invalid HTTP request format";
-    
+
     try {
         parseRequest(request);
         validateHeaders();
@@ -18,293 +18,184 @@ Request::Request(const string& request) {
         validRequest = false;
         statusMessage = e.what();
 
-        cout << statusMessage << endl;
+        std::cout << statusMessage << std::endl;
     }
 }
 
-void Request::parseRequest(const string& request) {
+void Request::parseRequest(const std::string& request) {
     size_t pos = 0;
-    size_t len = request.length();
-    
-    // Step 1: Check for empty request
-    if (len == 0) {
+
+    if (request.empty()) {
         throw std::runtime_error("400 Bad Request: Empty request");
     }
 
-    // Parse request line
-    parseRequestLine(request, pos, len);
+    parseRequestLine(request, pos);
+    parseHeaders(request, pos);
 
-    // Parse headers
-    parseHeaders(request, pos, len);
+    if (headers.count("Content-Length")) {
+        parseBody(request, pos);
+    }
 
-    // Parse body if Content-Length header is present
-    parseBody(request, pos, len);
-
-    // Validate and decode the path
     decoded_path = validatePath(path);
 }
 
-void Request::parseRequestLine(const string& request, size_t& pos, size_t len) {
- 
-    method = parseMethod(request, pos, len);
-
-    
+void Request::parseRequestLine(const std::string& request, size_t& pos) {
+    method = extractToken(request, pos, ' ');
     validateMethod(method);
 
-    // Skip whitespace
-    while (pos < len && request[pos] == ' ') pos++;
-
-    // Parse path and query parameters (if any) 
-    while (pos < len && request[pos] != ' ' && request[pos] != '?') {
-        path += request[pos++];
-    }
-
-    // Check for query parameters (starts with '?')
-    if (pos < len && request[pos] == '?') {
-        pos++;  
-        while (pos < len && request[pos] != ' ' && request[pos] != '#') {
-            string param;
-            // Get parameter name
-            while (pos < len && request[pos] != '=' && request[pos] != '&' && request[pos] != ' ' && request[pos] != '#') {
-                param += request[pos++];
-            }
-            if (param.empty()) {
-                throw std::runtime_error("400 Bad Request: Empty query parameter name");
-            }
-
-            // Skip '='
-            if (pos < len && request[pos] == '=') {
-                pos++;
-            }
-
-            // Get parameter value
-            string value;
-            while (pos < len && request[pos] != '&' && request[pos] != ' ' && request[pos] != '#') {
-                value += request[pos++];
-            }
-
-            query_param[param] = value;
-
-            // Skip '&' (if more parameters exist)
-            if (pos < len && request[pos] == '&') {
-                pos++;
-            }
-        }
-    }
-
-    // Check for fragment (starts with '#')
-    if (pos < len && request[pos] == '#') {
-        pos++;  // skip the '#' character
-        while (pos < len) {
-            fragment += request[pos++];
-        }
-    }
-
-    // Skip whitespace
-    while (pos < len && request[pos] == ' ') pos++;
-
-    // Parse HTTP version
-    while (pos < len && request[pos] != '\r' && request[pos] != '\n') {
-        version += request[pos++];
-    }
+    path = extractToken(request, pos, ' ');
+    version = extractToken(request, pos, '\r');
 
     if (version != "HTTP/1.1") {
         throw std::runtime_error("505 HTTP Version Not Supported");
     }
 
-    // Skip \r\n
-    if (pos + 1 >= len || request[pos] != '\r' || request[pos + 1] != '\n') {
-        throw std::runtime_error("400 Bad Request: Invalid request line termination");
-    }
-    pos += 2;
+    validateLineTermination(request, pos);
 }
 
-void Request::parseHeaders(const string& request, size_t& pos, size_t len) {
-    string header_name;
-    string header_value;
-    bool parsing_name = true;
+void Request::parseHeaders(const std::string& request, size_t& pos) {
+    while (pos < request.size() && request[pos] != '\r') {
+        std::string line = extractToken(request, pos, '\r');
+        validateLineTermination(request, pos);
 
-    while (pos < len) {
-        // Check for end of headers (empty line)
-        if (request[pos] == '\r' && pos + 1 < len && request[pos + 1] == '\n') {
-            if (!header_name.empty()) {
-                trim(header_value);
-                headers[header_name] = header_value;
-            }
-            pos += 2;
-            break;
+        size_t separator = line.find(":");
+        if (separator == std::string::npos) {
+            throw std::runtime_error("400 Bad Request: Malformed header");
         }
 
-        // Handle line endings
-        if (request[pos] == '\r' && pos + 1 < len && request[pos + 1] == '\n') {
-            if (!header_name.empty()) {
-                trim(header_value);
-                headers[header_name] = header_value;
-            }
-            header_name.clear();
-            header_value.clear();
-            parsing_name = true;
-            pos += 2;
-            continue;
+        std::string name = trim(line.substr(0, separator));
+        std::string value = trim(line.substr(separator + 1));
+
+        if (name.empty() || value.empty()) {
+            throw std::runtime_error("400 Bad Request: Empty header name or value");
         }
 
-        if (parsing_name) {
-            if (request[pos] == ':') {
-                parsing_name = false;
-                pos++;
-                // Skip whitespace after colon
-                while (pos < len && request[pos] == ' ') pos++;
-            } else {
-                header_name += request[pos];
-            }
-        } else {
-            header_value += request[pos];
-        }
+        headers[name] = value;
+    }
+
+    validateLineTermination(request, pos);
+}
+
+void Request::parseBody(const std::string& request, size_t& pos) {
+    int contentLength = std::stoi(headers["Content-Length"]);
+    if (pos + contentLength > request.size()) {
+        throw std::runtime_error("400 Bad Request: Incomplete body");
+    }
+    body = request.substr(pos, contentLength);
+}
+
+void Request::validateHeaders() {
+    if (!headers.count("Host")) {
+        throw std::runtime_error("400 Bad Request: Missing Host header");
+    }
+}
+
+std::string Request::extractToken(const std::string& request, size_t& pos, char delimiter) {
+    size_t start = pos;
+    while (pos < request.size() && request[pos] != delimiter) {
         pos++;
     }
-}
 
-void Request::parseBody(const string& request, size_t& pos, size_t len) {
-    if (headers.find("Content-Length") != headers.end()) {
-        int content_length = std::atoi(headers["Content-Length"].c_str());
-        if (content_length > 0) {
-            if (pos + content_length > len) {
-                throw std::runtime_error("400 Bad Request: Incomplete body");
-            }
-            body = request.substr(pos, content_length);
-        }
-    }
-}
-
-string Request::parseMethod(const string& request, size_t& pos, size_t len) {
-    string method;
-    while (pos < len && request[pos] != ' ') {
-        method += request[pos++];
-    }
-    return method;
-}
-
-void Request::validateMethod(const string& method) {
-    if (method.empty()) {
-        throw std::runtime_error("400 Bad Request: Missing HTTP method");
+    if (pos >= request.size()) {
+        throw std::runtime_error("400 Bad Request: Malformed request");
     }
 
-  
-    if (method != "GET" && method != "POST" && method != "DELETE") {
+    std::string token = request.substr(start, pos - start);
+    pos++;
+    return token;
+}
+
+void Request::validateMethod(const std::string& method) {
+    static const std::set<std::string> allowedMethods = {"GET", "POST", "DELETE"};
+    if (allowedMethods.find(method) == allowedMethods.end()) {
         throw std::runtime_error("405 Method Not Allowed: Unsupported HTTP method");
     }
 }
 
-string Request::validatePath(const string& path) {
-    string decoded;
-    size_t i = 0;
-    const size_t path_len = path.length();
+void Request::validateLineTermination(const std::string& request, size_t& pos) {
+    if (pos + 1 >= request.size() || request[pos] != '\n') {
+        throw std::runtime_error("400 Bad Request: Invalid line termination");
+    }
+    pos++;
+}
 
-  
+std::string Request::validatePath(const std::string& path) {
     if (path.empty() || path[0] != '/') {
         throw std::runtime_error("400 Bad Request: Path must start with '/'");
     }
 
-    while (i < path_len) {
-        char c = path[i];
+    // Check for bad URI characters
+    if (isBadUri(path)) {
+        throw std::runtime_error("400 Bad Request: Invalid URI characters");
+    }
 
-     
-        if (c == '%') {
-            if (i + 2 >= path_len) {
-                throw std::runtime_error("400 Bad Request: Incomplete percent encoding");
-            }
+    // Check for path traversal (`..`)
+    if (isBadUriTraversal(path)) {
+        throw std::runtime_error("400 Bad Request: Path traversal detected in URI");
+    }
 
-            char high = path[i + 1];
-            char low = path[i + 2];
-
-            if (!isHexDigit(high) || !isHexDigit(low)) {
+    std::string decoded;
+    for (size_t i = 0; i < path.size(); i++) {
+        if (path[i] == '%') {
+            if (i + 2 >= path.size() || !isHexDigit(path[i + 1]) || !isHexDigit(path[i + 2])) {
                 throw std::runtime_error("400 Bad Request: Invalid percent encoding");
             }
-
-            char decoded_char = hexToChar(high, low);
-
-          
-            if (decoded_char < 32 || decoded_char == 127) {
-                throw std::runtime_error("400 Bad Request: Invalid character in path");
-            }
-
-            decoded += decoded_char;
-            i += 3;
-            continue;
-        }
-
-     
-        if (c < 32 || c > 126) {
+            decoded += hexToChar(path[i + 1], path[i + 2]);
+            i += 2;
+        } else if (path[i] < 32 || path[i] > 126) {
             throw std::runtime_error("400 Bad Request: Invalid character in path");
+        } else {
+            decoded += path[i];
         }
+    }
 
-        decoded += c;
-        i++;
+    if (path.length() > 2048) {
+        throw std::runtime_error("414 Request-URI Too Long");
     }
 
     return decoded;
 }
 
 bool Request::isHexDigit(char c) {
-    return (c >= '0' && c <= '9') ||
-           (c >= 'a' && c <= 'f') ||
-           (c >= 'A' && c <= 'F');
+    return std::isxdigit(static_cast<unsigned char>(c));
 }
 
 char Request::hexToChar(char high, char low) {
-    high = toupper(high);
-    low = toupper(low);
-
-    int highVal = (high >= 'A') ? (high - 'A' + 10) : (high - '0');
-    int lowVal = (low >= 'A') ? (low - 'A' + 10) : (low - '0');
-
+    int highVal = std::isdigit(high) ? high - '0' : std::toupper(high) - 'A' + 10;
+    int lowVal = std::isdigit(low) ? low - '0' : std::toupper(low) - 'A' + 10;
     return static_cast<char>((highVal << 4) | lowVal);
 }
 
-void Request::trim(string& str) {
+std::string Request::trim(const std::string& str) {
     size_t start = str.find_first_not_of(" \t\r\n");
     size_t end = str.find_last_not_of(" \t\r\n");
-
-    if (start == string::npos || end == string::npos) {
-        str.clear();
-    } else {
-        str = str.substr(start, end - start + 1);
-    }
-}
-
-void Request::validateHeaders() {
-    if (headers.find("Host") == headers.end()) {
-        throw std::runtime_error("400 Bad Request: Missing Host header");
-    }
-
-    if (headers.count("Host") > 1) {
-        throw std::runtime_error("400 Bad Request: Multiple Host headers");
-    }
+    return (start == std::string::npos || end == std::string::npos) ? "" : str.substr(start, end - start + 1);
 }
 
 bool Request::isValid() const { return validRequest; }
-string Request::getStatusMessage() const { return statusMessage; }
+std::string Request::getStatusMessage() const { return statusMessage; }
+const std::string& Request::getMethod() const { return method; }
+const std::string& Request::getPath() const { return path; }
+const std::string& Request::getDecodedPath() const { return decoded_path; }
+const std::string& Request::getVersion() const { return version; }
+const std::map<std::string, std::string>& Request::getHeaders() const { return headers; }
+const std::string& Request::getBody() const { return body; }
 
-const string& Request::getMethod() const {
-    return method;
+bool Request::isBadUri(const std::string& uri) {
+    // Check if URI contains only valid characters
+    static const std::string allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=%";
+    for (char c : uri) {
+        if (allowedChars.find(c) == std::string::npos) {
+            return true;
+        }
+    }
+    return false;
 }
 
-const string& Request::getPath() const {
-    return path;
-}
-
-const string& Request::getDecodedPath() const {
-    return decoded_path;
-}
-
-const string& Request::getVersion() const {
-    return version;
-}
-
-const map<string, string>& Request::getHeaders() const {
-    return headers;
-}
-
-const string& Request::getBody() const {
-    return body;
+bool Request::isBadUriTraversal(const std::string& uri) {
+    // Check for path traversal (e.g., '/../')
+    if (uri.find("/../") != std::string::npos || uri == ".." || uri.find("/..") == 0) {
+        return true;
+    }
+    return false;
 }
