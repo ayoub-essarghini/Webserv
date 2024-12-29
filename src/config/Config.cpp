@@ -42,7 +42,7 @@ void Config::parseServer()
 {
     file_path = "";
     port = 8080;
-    root = "www/";
+    root = "www";
     server_name = "s1";
     error_pages[404] = "/404.html";
     error_pages[500] = "/500.html";

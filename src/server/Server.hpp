@@ -26,6 +26,7 @@ private:
     string serveFile(const string& filePath);
     string generateDirectoryListing(const string& dirPath);
     string generateErrorPage(int statusCode);
+    std::string getMimeType(const std::string& filePath);
     std::string checkResource(const std::string& fullPath);
     string requestToParse;
 };
