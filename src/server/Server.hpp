@@ -25,6 +25,7 @@ private:
     string handleRedirect(const string& redirectUrl, int statusCode);
     string serveFile(const string& filePath);
     string generateDirectoryListing(const string& dirPath);
-    string generateErrorPage(int statusCode, const string &statusText);
+    string generateErrorPage(int statusCode);
+    std::string checkResource(const std::string& fullPath);
     string requestToParse;
 };

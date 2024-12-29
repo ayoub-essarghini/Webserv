@@ -68,82 +68,130 @@ string Server::processRequest(const Request &request)
     }
     else
     {
-        return generateErrorPage(405, "Method Not Allowed");
+        return generateErrorPage(405);
     }
 }
 
-string Server::handleGet(const Request &request)
-{
+string Server::handleGet(const Request &request) {
     map<string, Location> locs = server_config.getLocations();
     string url = request.getDecodedPath();
-
+    
+    // Debug URL
+    std::cout << "Requested URL: " << url << std::endl;
+    
+    // First find the best matching location block
     Location bestMatch;
     size_t bestMatchLength = 0;
     bool found = false;
 
-    // Find the best matching location
-    for (const auto &loc : locs)
-    {
+    // Print all available locations
+    // std::cout << "Available locations:" << std::endl;
+    // for (const auto &loc : locs) {
+    //     std::cout << "- " << loc.first << std::endl;
+    // }
+
+    // Find the most specific matching location
+   
+    for (const auto &loc : locs) {
         const string &locationPath = loc.first;
-        if (url.find(locationPath) == 0 && (url == locationPath || url[locationPath.length()] == '/'))
-        {
-            if (locationPath.length() > bestMatchLength)
-            {
-                found = true;
-                bestMatch = loc.second;
-                bestMatchLength = locationPath.length();
-            }
-        }
-    }
-
-    if (!found)
-    {
-        return generateErrorPage(404, "Not Found");
-    }
-
-    string path = url.substr(bestMatchLength);
-    string fullPath = bestMatch.root + path;
-
-    // Check if redirect is specified
-    if (!bestMatch.redirect.empty())
-    {
-        return handleRedirect(bestMatch.redirect, bestMatch.redirectCode);
-    }
-
-    struct stat pathStat;
-    if (stat(fullPath.c_str(), &pathStat) != 0) // File or directory does not exist
-    {
-        return generateErrorPage(404, "Not Found");
-    }
-
-    if (S_ISDIR(pathStat.st_mode)) // If it's a directory
-    {
-        if (bestMatch.autoindex) // If auto-index is enabled
-        {
-            return generateDirectoryListing(fullPath); // Generate directory listing
-        }
-        else
-        {
-            // Check if index file exists in the directory
-            for (const auto &indexFile : bestMatch.index_files)
-            {
-                string indexPath = fullPath + "/" + indexFile;
-                if (stat(indexPath.c_str(), &pathStat) == 0) // Index file found
-                {
-                    return serveFile(indexPath);
+        
+        // Check if URL starts with this location path
+        if (url.find(locationPath) == 0) {
+          
+                if (locationPath.length() > bestMatchLength) {
+                    // std::cout << "Found better match: " << locationPath << std::endl;
+                    found = true;
+                    bestMatch = loc.second;
+              
+                    bestMatchLength = locationPath.length();
                 }
-            }
-
-            return generateErrorPage(403, "Forbidden");
+            // }
         }
     }
-    else if (S_ISREG(pathStat.st_mode)) // If it's a file
-    {
+
+    if (!found) {
+        std::cout << "No matching location found" << std::endl;
+        return generateErrorPage(404);
+    }
+
+    std::cout << "Best matching location: " << bestMatch << std::endl;
+
+     
+
+    // // Construct full filesystem path
+    string fullPath = "src" + bestMatch.root + url;
+    cout <<"Full Path is : "<< fullPath  << endl;
+  
+    
+   
+
+    // std::cout << "Full filesystem path: " << fullPath << std::endl;
+
+    // cout << checkResource(fullPath);
+
+    // Check if path exists
+    struct stat pathStat;
+    if (stat(fullPath.c_str(), &pathStat) != 0) {
+
+        std::cout << "Resource not found: " << fullPath << std::endl;
+        return generateErrorPage(404);
+    }
+    
+  
+
+    // Handle directory
+    if (S_ISDIR(pathStat.st_mode)) {
+        cout << "------------------IS DIR ------------------------\n";
+        // Redirect if no trailing slash
+        if (url[url.length() - 1] != '/') {
+            string redirectUrl = url + "/";
+            return handleRedirect(redirectUrl, 301);
+        }
+
+        // Check for index files first
+        for (const auto &indexFile : bestMatch.index_files) {
+            string indexPath = fullPath + "/" + indexFile;
+            struct stat indexStat;
+            if (stat(indexPath.c_str(), &indexStat) == 0) {
+                return serveFile(indexPath);
+            }
+        }
+
+        // If no index file and autoindex is enabled
+        if (bestMatch.autoindex) {
+            return generateDirectoryListing(fullPath);
+        }
+
+        return generateErrorPage(403);
+    }
+    // Handle regular file
+    else if (S_ISREG(pathStat.st_mode)) {
+      
         return serveFile(fullPath);
     }
-    else
-    {
-        return generateErrorPage(404, "Not Found");
+
+    return generateErrorPage(404);
+}
+
+std::string Server::checkResource(const std::string& fullPath) {
+    struct stat pathStat;
+    if (stat(fullPath.c_str(), &pathStat) != 0) {
+        // Path does not exist
+        std::cout << "Resource not found: " << fullPath << std::endl;
+        return generateErrorPage(404);
+    }
+    else {
+        // Path exists, check if it's a directory or a file
+        if (S_ISDIR(pathStat.st_mode)) {
+            std::cout << "Resource is a directory: " << fullPath << std::endl;
+        }
+        else if (S_ISREG(pathStat.st_mode)) {
+            std::cout << "Resource is a regular file: " << fullPath << std::endl;
+        }
+        else {
+            std::cout << "Resource is neither a file nor a directory: " << fullPath << std::endl;
+        }
+        return "Resource found";
     }
 }
 
@@ -166,7 +214,7 @@ string Server::serveFile(const string &filePath)
     ifstream file(filePath, ios::in | ios::binary);
     if (!file.is_open())
     {
-        return generateErrorPage(404, "Not Found");
+        return generateErrorPage(404);
     }
 
     stringstream buffer;
@@ -179,7 +227,7 @@ string Server::generateDirectoryListing(const string &dirPath)
     DIR *dir = opendir(dirPath.c_str());
     if (!dir)
     {
-        return generateErrorPage(403, "Forbidden");
+        return generateErrorPage(403);
     }
 
     struct dirent *entry;
@@ -230,7 +278,7 @@ string Server::handlePost(const Request &request)
         return "<html><body><h1>POST Data Received:</h1><p>" + body + "</p></body></html>";
     }
 
-    return generateErrorPage(404, "Not Found");
+    return generateErrorPage(404);
 }
 
 string Server::handleDelete(const Request &request)
@@ -261,12 +309,15 @@ string Server::handleDelete(const Request &request)
         return "<html><body><h1>DELETE Operation Successful on " + bestMatch.root + "</h1></body></html>";
     }
 
-    return generateErrorPage(404, "Not Found");
+    return generateErrorPage(404);
 }
 
-string Server::generateErrorPage(int statusCode, const string &statusText)
+string Server::generateErrorPage(int statusCode)
 {
+
+    
+
     stringstream errorPage;
-    errorPage << "<html><body><h1>" << statusCode << " " << statusText << "</h1></body></html>";
+    errorPage << "<html><body><h1>" << statusCode << " " << "</h1></body></html>";
     return errorPage.str();
 }

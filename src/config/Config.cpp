@@ -60,14 +60,14 @@ void Config::parseLocation()
     l1.allow_methods.push_back("GET");
     l1.allow_methods.push_back("POST");
 
-    l1.autoindex = false;
+    l1.autoindex = true;
     l1.index_files.push_back("index.html");
     l1.client_max_body_size = 1024;
 
 
 
     Location l2;
-    l2.root = "test/test2/";
+    l2.root = "/test/test2";
     l2.allow_methods.push_back("POST");
     l2.autoindex = false;
     l2.client_max_body_size = 1024 * 5;
@@ -118,7 +118,7 @@ ostream &operator<<(ostream& os,const Location& location)
         cout << "method:  "<< *it << endl; 
         it++;
     }
-    cout << location.root << endl;
+    cout << "root: "<<location.root << endl;
     cout << "auto index : " << location.autoindex << endl;
     cout << "client max body size : " << location.client_max_body_size << endl;
     vector<string>::const_iterator it2 = location.index_files.begin();
@@ -126,10 +126,10 @@ ostream &operator<<(ostream& os,const Location& location)
         cout << "indexes: ";
     while (it2 != location.index_files.end())
     {
-        cout << *it2 << " ";
+        cout << *it2 << " " << endl ;
         it2++;
     }
-    cout << "redirect: " <<location.redirect << " ";
+    cout << "redirect: " <<location.redirect << " " << endl;
     cout << "redirect code: " << location.redirectCode << endl;
     
 
