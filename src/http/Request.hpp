@@ -50,6 +50,7 @@ private:
     void validateLineTermination(const std::string &request, size_t &pos);
     bool isHexDigit(char c);
     char hexToChar(char high, char low);
-
+    std::string normalizeLineEndings(const std::string &request);
+    std::string toLower(const std::string &str);
     std::string trim(const std::string &str);
 };
