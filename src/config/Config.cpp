@@ -109,6 +109,11 @@ const map<string,Location> Config::getLocations()
     return locations;
 }
 
+vector<string> Config::getIndexFiles()
+{
+    return index_files;
+}
+
 
 ostream &operator<<(ostream& os,const Location& location)
 {

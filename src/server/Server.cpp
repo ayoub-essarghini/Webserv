@@ -111,6 +111,17 @@ string Server::handleGet(const Request &request) {
 
     if (!found) {
         std::cout << "No matching location found" << std::endl;
+ for (const auto &indexFile : server_config.getIndexFiles()) {
+            string indexPath = "src/"+server_config.getRoot() + indexFile;
+            cout << "---------------\n";
+            cout <<indexPath <<"\n";
+            cout << "---------------\n";
+            struct stat indexStat;
+            if (stat(indexPath.c_str(), &indexStat) == 0) {
+                return serveFile(indexPath);
+            }
+        }
+
         return generateErrorPage(404);
     }
 
@@ -125,9 +136,7 @@ string Server::handleGet(const Request &request) {
     
    
 
-    // std::cout << "Full filesystem path: " << fullPath << std::endl;
-
-    // cout << checkResource(fullPath);
+  
 
     // Check if path exists
     struct stat pathStat;
@@ -156,6 +165,8 @@ string Server::handleGet(const Request &request) {
                 return serveFile(indexPath);
             }
         }
+
+        
 
         // If no index file and autoindex is enabled
         if (bestMatch.autoindex) {

@@ -3,7 +3,8 @@
 #include <map>
 #include <vector>
 using namespace std;
-struct Location {
+struct Location
+{
     string root;
     vector<string> allow_methods;
     bool autoindex;
@@ -15,15 +16,17 @@ struct Location {
     Location() : autoindex(false), client_max_body_size(0) {}
 };
 
-class Config {
+class Config
+{
 public:
-    Config(const string& config_file);
+    Config(const string &config_file);
     void parse();
     int getPort() const;
-    const string& getRoot() const;
-    const Location& getLocation(const string& path) const;
-    const map<string,Location> getLocations();
+    const string &getRoot() const;
+    const Location &getLocation(const string &path) const;
+    const map<string, Location> getLocations();
     void print_config() const;
+    vector<string> getIndexFiles();
 
 private:
     string file_path;
@@ -38,6 +41,4 @@ private:
     void parseLocation();
 };
 
-ostream &operator<<(ostream& os,const Location& location);
-
-
+ostream &operator<<(ostream &os, const Location &location);
