@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <fcntl.h>
 #include <map>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -15,31 +16,90 @@ using namespace std;
 
 Server::Server(int port, Config &config) : server_socket(port), server_config(config) {}
 
+
+string Server::readRequest(int client_sockfd)
+{
+    char buffer[1024] = {0};
+    string request = "";
+    int valread = read(client_sockfd, buffer, 1024);
+    if (valread < 0)
+    {
+        cerr << "Error reading from socket" << endl;
+        return "";
+    }
+    request.append(buffer, valread);
+    return request;
+}
 void Server::start()
 {
     server_socket.bindSocket();
     server_socket.listenSocket();
     cout << "Server is listening on port " << server_socket.getPort() << "..." << endl;
 
+    // Set server socket to non-blocking
+    // fcntl(server_socket.getSocketFd(), F_SETFL, O_NONBLOCK);
+
     while (true)
     {
         int client_sockfd = server_socket.acceptConnection();
-        handleRequest(client_sockfd);
+        if (client_sockfd < 0)
+        {
+            if (errno == EWOULDBLOCK || errno == EAGAIN)
+            {
+                continue; // No pending connections
+            }
+            cerr << "Error accepting connection" << endl;
+            continue;
+        }
+
+        // Set client socket to non-blocking
+        fcntl(client_sockfd, F_SETFL, O_NONBLOCK);
+        
+        string request;
+        bool complete = false;
+        while (!complete)
+        {
+            char buffer[1024] = {0};
+            int valread = read(client_sockfd, buffer, 1024);
+            
+            if (valread < 0)
+            {
+                if (errno == EWOULDBLOCK || errno == EAGAIN)
+                {
+                    usleep(1000); // Short sleep to prevent CPU spinning
+                    continue;
+                }
+                cerr << "Error reading from socket" << endl;
+                break;
+            }
+            else if (valread == 0)
+            {
+                break; // Connection closed
+            }
+            
+            request.append(buffer, valread);
+            
+            // Check for request termination
+            if (request.find("\r\n\r\n") != string::npos || request.find("\n\n") != string::npos)
+            {
+                complete = true;
+            }
+        }
+
+        if (complete)
+        {
+            handleRequest(client_sockfd, request);
+        }
         close(client_sockfd);
     }
 }
 
-void Server::handleRequest(int client_sockfd)
+void Server::handleRequest(int client_sockfd,string req)
 {
-    char buffer[1024];
-    int bytes_read = read(client_sockfd, buffer, sizeof(buffer) - 1);
-    if (bytes_read <= 0)
-        return;
-
-    buffer[bytes_read] = '\0'; // Null-terminate the buffer
+   
 
     // Parse the incoming request
-    Request request(buffer);
+    Request request(req);
     string response_body = processRequest(request);
 
     // Create and send response

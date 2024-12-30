@@ -19,6 +19,7 @@ public:
     void listenSocket();
     int acceptConnection();
     int getPort()const;
+    int getSocketFd()const;
 
 private:
     int sockfd;

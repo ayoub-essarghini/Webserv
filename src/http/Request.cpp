@@ -7,6 +7,7 @@
 
 Request::Request(const std::string &request)
 {
+std::cout << "start proccessing the request" << std::endl;
     validRequest = false;
     statusMessage = "Invalid HTTP request format";
 
@@ -27,6 +28,7 @@ Request::Request(const std::string &request)
         statusMessage = e.what();
 
         std::cout << statusMessage << std::endl;
+    
     }
 }
 
@@ -42,6 +44,8 @@ void Request::parseRequest(const std::string &request)
     parseRequestLine(request, pos);
     parseHeaders(request, pos);
 
+    std::cout << "headers parsed 2 success" << std::endl;
+ 
     if (headers.count("Content-Length"))
     {
         parseBody(request, pos);
@@ -62,15 +66,16 @@ void Request::parseRequestLine(const std::string &request, size_t &pos)
     {
         throw std::runtime_error("505 HTTP Version Not Supported");
     }
-
+    std::cout << "reques line parsed" << std::endl;
     validateLineTermination(request, pos);
 }
 
 void Request::parseHeaders(const std::string &request, size_t &pos)
 {
-    while (pos < request.size() && request[pos] != '\r')
+    while (pos < request.size() && request[pos] != '\r' && request[pos] != '\n')
     {
         std::string line = extractToken(request, pos, '\r');
+        std::cout << "extract token parsed" << std::endl;
         validateLineTermination(request, pos);
 
         size_t separator = line.find(":");
@@ -90,8 +95,9 @@ void Request::parseHeaders(const std::string &request, size_t &pos)
         headers[name] = value;
     }
 
+ std::cout << "header line parsed" << std::endl;
     // Validate final blank line termination after headers
-    validateLineTermination(request, pos);
+    // validateLineTermination(request, pos);
 }
 
 void Request::parseBody(const std::string &request, size_t &pos)
@@ -115,7 +121,7 @@ void Request::validateHeaders()
 std::string Request::extractToken(const std::string &request, size_t &pos, char delimiter)
 {
     size_t start = pos;
-    while (pos < request.size() && request[pos] != delimiter)
+    while (pos < request.size() && request[pos] != delimiter  && request[pos] != '\n')
     {
         pos++;
     }
@@ -126,7 +132,7 @@ std::string Request::extractToken(const std::string &request, size_t &pos, char 
     }
 
     std::string token = request.substr(start, pos - start);
-    // std::cout << "Extracted token: " << token << std::endl;
+    std::cout << "Extracted token: " << token << std::endl;
     pos++;
     return token;
 }
@@ -338,61 +344,21 @@ bool Request::isBadUriTraversal(const std::string &uri)
     return false;
 }
 
-// std::string Request::normalizeLineEndings(const std::string &request)
-// {
-//     std::string normalized;
-//     normalized.reserve(request.size());  // Pre-allocate space for efficiency
 
-//     for (size_t i = 0; i < request.size(); i++)
-//     {
-//         // Handle CRLF (Windows/HTTP standard)
-//         if (request[i] == '\r' && i + 1 < request.size() && request[i + 1] == '\n')
-//         {
-//             normalized += "\r\n";
-//             i++; // Skip the \n since we already added it
-//         }
-//         // Handle lone CR
-//         else if (request[i] == '\r')
-//         {
-//             normalized += "\r\n";
-//         }
-//         // Handle lone LF
-//         else if (request[i] == '\n')
-//         {
-//             // If the previous character wasn't \r, add both
-//             if (normalized.empty() || normalized[normalized.size() - 1] != '\r')
-//             {
-//                 normalized += "\r\n";
-//             }
-//             else
-//             {
-//                 normalized += '\n';
-//             }
-//         }
-//         // Handle normal characters
-//         else
-//         {
-//             normalized += request[i];
-//         }
-//     }
-//     return normalized;
-// }
-
-// Only changing the validateLineTermination function to be more lenient
 void Request::validateLineTermination(const std::string &request, size_t &pos)
 {
-    // First check for standard CRLF
-    if (pos + 1 < request.size() && request[pos] == '\r' && request[pos + 1] == '\n')
-    {
-        pos += 2; // Skip both \r\n
-        return;
-    }
-    // Check for lone LF
-    else if (pos < request.size() && request[pos] == '\n')
+    // Check for lone LF (netcat style)
+    if (pos < request.size() && request[pos] == '\n')
     {
         pos += 1; // Skip the \n
         return;
     }
+    // Also accept CRLF
+    else if (pos + 1 < request.size() && request[pos] == '\r' && request[pos + 1] == '\n')
+    {
+        pos += 2; // Skip both \r\n
+        return;
+    }
     // No valid line termination found
-    throw std::runtime_error("400 Bad Request: Invalid line termination. Expected '\\r\\n'.");
+    throw std::runtime_error("400 Bad Request: Invalid line termination");
 }

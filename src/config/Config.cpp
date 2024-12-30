@@ -115,6 +115,8 @@ vector<string> Config::getIndexFiles()
 }
 
 
+
+
 ostream &operator<<(ostream& os,const Location& location)
 {
     vector<string>::const_iterator it = location.allow_methods.begin();

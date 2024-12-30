@@ -55,3 +55,8 @@ int Socket::getPort() const
 {
     return port;
 }
+
+int Socket::getSocketFd() const
+{
+    return sockfd;
+}

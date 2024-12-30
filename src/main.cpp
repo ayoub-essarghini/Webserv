@@ -5,7 +5,7 @@ int main() {
     try {
         Config config("src/Server.conf");
         config.parse();
-        Server server(8080,config);
+        Server server(8084,config);
         server.start();
 
 

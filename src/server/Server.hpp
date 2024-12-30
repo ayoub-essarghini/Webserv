@@ -9,6 +9,12 @@
 
 using namespace std;
 
+struct ClientInfo
+{
+    string fd;
+    char *buffer;
+};
+
 class Server {
 public:
     Server(int port, Config& config);
@@ -17,7 +23,9 @@ public:
 private:
     Socket server_socket;
     Config server_config;
-    void handleRequest(int client_sockfd);
+    map<int, ClientInfo> clients;
+    void handleRequest(int client_sockfd,string req);
+    string readRequest(int client_sockfd);
     string processRequest(const Request& request);
     string handleGet(const Request& request);
     string handlePost(const Request& request);
