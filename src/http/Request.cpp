@@ -7,29 +7,14 @@
 
 Request::Request(const std::string &request)
 {
-std::cout << "start proccessing the request" << std::endl;
-    validRequest = false;
-    statusMessage = "Invalid HTTP request format";
+ 
 
-    try
-    {
         // std::string normalizedRequest = normalizeLineEndings(request);
         parseRequest(request);
-        validateHeaders();
-        validRequest = true;
-        statusMessage = "Valid HTTP request";
-        // std::cout << statusMessage << std::endl;
-
-
-    }
-    catch (const std::runtime_error &e)
-    {
-        validRequest = false;
-        statusMessage = e.what();
-
-        std::cout << statusMessage << std::endl;
+        // validateHeaders();
+      
     
-    }
+  
 }
 
 void Request::parseRequest(const std::string &request)
@@ -44,29 +29,38 @@ void Request::parseRequest(const std::string &request)
     parseRequestLine(request, pos);
     parseHeaders(request, pos);
 
-    std::cout << "headers parsed 2 success" << std::endl;
- 
-    if (headers.count("Content-Length"))
-    {
-        parseBody(request, pos);
-    }
+    // if (headers.count("Content-Length"))
+    // {
+    //     parseBody(request, pos);
+    // }
 
     decoded_path = validatePath(path);
 }
-
 void Request::parseRequestLine(const std::string &request, size_t &pos)
 {
-    method = extractToken(request, pos, ' ');
-    validateMethod(method);
-
-    path = extractToken(request, pos, ' ');
-    version = extractToken(request, pos, '\r');
-
-    if (version != "HTTP/1.1")
+    size_t pos2 = 0;
+    std::string line = extractToken(request, pos2, '\r');
+    pos  = pos2;
+    char *check = (char *)line.c_str();
+    bool valid = false;
+    int i = 0;
+    while (check[i])
     {
-        throw std::runtime_error("505 HTTP Version Not Supported");
+        if ((check[i] == ' ' && check[i + 1] == ' ') || (check[i] == '\t' && check[i + 1] == '\t') || (check[i] == ' ' && check[i + 1] == '\t') || (check[i] == '\t' && check[i + 1] == ' '))
+            throw std::runtime_error("Expected continuos spaces");
+        i++;
     }
-    std::cout << "reques line parsed" << std::endl;
+    std::string last ;
+    std::stringstream ss(line);
+    ss >> method >> path >> version >> last;
+
+    if (!last.empty())
+        throw std::runtime_error("malformed request");
+    if (version != "HTTP/1.1")
+        throw std::runtime_error("500 Unsupported HTTP version");
+    
+    std::cout << method << std::endl << path << std::endl << version << std::endl;
+  
     validateLineTermination(request, pos);
 }
 
@@ -81,6 +75,7 @@ void Request::parseHeaders(const std::string &request, size_t &pos)
         size_t separator = line.find(":");
         if (separator == std::string::npos)
         {
+            std::cout << "400 Bad Request: Malformed header" << std::endl;
             throw std::runtime_error("400 Bad Request: Malformed header");
         }
 
@@ -95,9 +90,9 @@ void Request::parseHeaders(const std::string &request, size_t &pos)
         headers[name] = value;
     }
 
- std::cout << "header line parsed" << std::endl;
-    // Validate final blank line termination after headers
-    // validateLineTermination(request, pos);
+    std::cout << "header line parsed" << std::endl;
+
+    validateLineTermination(request, pos);
 }
 
 void Request::parseBody(const std::string &request, size_t &pos)
@@ -121,7 +116,7 @@ void Request::validateHeaders()
 std::string Request::extractToken(const std::string &request, size_t &pos, char delimiter)
 {
     size_t start = pos;
-    while (pos < request.size() && request[pos] != delimiter  && request[pos] != '\n')
+    while (pos < request.size() && request[pos] != delimiter && request[pos] != '\n')
     {
         pos++;
     }
@@ -145,8 +140,6 @@ void Request::validateMethod(const std::string &method)
         throw std::runtime_error("405 Method Not Allowed: Unsupported HTTP method");
     }
 }
-
-
 
 bool Request::isHexDigit(char c)
 {
@@ -176,7 +169,6 @@ const std::string &Request::getVersion() const { return version; }
 const std::map<std::string, std::string> &Request::getHeaders() const { return headers; }
 const std::string &Request::getBody() const { return body; }
 
-
 bool Request::isBadUri(const std::string &uri)
 {
     // RFC 3986 allowed characters in URLs
@@ -189,12 +181,12 @@ bool Request::isBadUri(const std::string &uri)
     for (size_t i = 0; i < uri.length(); ++i)
     {
         char c = uri[i];
-        
+
         // Allow percent-encoded characters
         if (c == '%')
         {
-            if (i + 2 >= uri.length() || 
-                !isxdigit(static_cast<unsigned char>(uri[i + 1])) || 
+            if (i + 2 >= uri.length() ||
+                !isxdigit(static_cast<unsigned char>(uri[i + 1])) ||
                 !isxdigit(static_cast<unsigned char>(uri[i + 2])))
             {
                 return true; // Invalid percent encoding
@@ -274,20 +266,20 @@ std::string Request::validatePath(const std::string &path)
             {
                 throw std::runtime_error("400 Bad Request: Incomplete percent encoding");
             }
-            
+
             if (!isHexDigit(path[i + 1]) || !isHexDigit(path[i + 2]))
             {
                 throw std::runtime_error("400 Bad Request: Invalid percent encoding");
             }
 
             char decodedChar = hexToChar(path[i + 1], path[i + 2]);
-            
+
             // Check if decoded character is valid
             if (decodedChar < 0x20 || decodedChar > 0x7E)
             {
                 throw std::runtime_error("400 Bad Request: Invalid decoded character");
             }
-            
+
             decoded += decodedChar;
             i += 2;
         }
@@ -305,7 +297,7 @@ bool Request::isBadUriTraversal(const std::string &uri)
 {
     std::string::size_type pos = 0;
     std::string::size_type prevPos = 0;
-    
+
     while ((pos = uri.find('/', prevPos)) != std::string::npos)
     {
         if (pos == prevPos)
@@ -315,11 +307,11 @@ bool Request::isBadUriTraversal(const std::string &uri)
         }
 
         std::string segment = uri.substr(prevPos, pos - prevPos);
-        
+
         // Check for path traversal attempts
-        if (segment == ".." || 
-            segment == "." || 
-            segment.find("../") != std::string::npos || 
+        if (segment == ".." ||
+            segment == "." ||
+            segment.find("../") != std::string::npos ||
             segment.find("./") != std::string::npos)
         {
             return true;
@@ -332,9 +324,9 @@ bool Request::isBadUriTraversal(const std::string &uri)
     if (prevPos < uri.length())
     {
         std::string lastSegment = uri.substr(prevPos);
-        if (lastSegment == ".." || 
-            lastSegment == "." || 
-            lastSegment.find("../") != std::string::npos || 
+        if (lastSegment == ".." ||
+            lastSegment == "." ||
+            lastSegment.find("../") != std::string::npos ||
             lastSegment.find("./") != std::string::npos)
         {
             return true;
@@ -343,7 +335,6 @@ bool Request::isBadUriTraversal(const std::string &uri)
 
     return false;
 }
-
 
 void Request::validateLineTermination(const std::string &request, size_t &pos)
 {

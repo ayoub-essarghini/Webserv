@@ -16,7 +16,6 @@ using namespace std;
 
 Server::Server(int port, Config &config) : server_socket(port), server_config(config) {}
 
-
 string Server::readRequest(int client_sockfd)
 {
     char buffer[1024] = {0};
@@ -54,14 +53,14 @@ void Server::start()
 
         // Set client socket to non-blocking
         fcntl(client_sockfd, F_SETFL, O_NONBLOCK);
-        
+
         string request;
         bool complete = false;
         while (!complete)
         {
             char buffer[1024] = {0};
             int valread = read(client_sockfd, buffer, 1024);
-            
+
             if (valread < 0)
             {
                 if (errno == EWOULDBLOCK || errno == EAGAIN)
@@ -76,9 +75,9 @@ void Server::start()
             {
                 break; // Connection closed
             }
-            
+
             request.append(buffer, valread);
-            
+
             // Check for request termination
             if (request.find("\r\n\r\n") != string::npos || request.find("\n\n") != string::npos)
             {
@@ -94,28 +93,35 @@ void Server::start()
     }
 }
 
-void Server::handleRequest(int client_sockfd,string req)
+void Server::handleRequest(int client_sockfd, string req)
 {
-   
 
     // Parse the incoming request
-    Request request(req);
-    string response_body = processRequest(request);
+    try
+    {
+        Request request(req);
+        string response_body = processRequest(request);
 
-    // Create and send response
-    Response response;
-    response.setStatus(200, "OK");
-    response.addHeader("Content-Type", "text/html");
-    response.setBody(response_body);
+        // Create and send response
+        Response response;
+        response.setStatus(200, "OK");
+        response.addHeader("Content-Type", "text/html");
+        response.setBody(response_body);
 
-    string response_str = response.getResponse();
-    write(client_sockfd, response_str.c_str(), response_str.length());
+        string response_str = response.getResponse();
+        write(client_sockfd, response_str.c_str(), response_str.length());
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << e.what() << '\n';
+    }
 }
 
 string Server::processRequest(const Request &request)
 {
     if (request.getMethod() == "GET")
     {
+        cout << "GET request" << endl;
         return handleGet(request);
     }
     else if (request.getMethod() == "POST")
@@ -179,7 +185,7 @@ string Server::handleGet(const Request &request)
         if (S_ISDIR(f_pathStat.st_mode))
         {
 
-            if (url[url.length() - 1] != '/')
+            if (url[url.length() - 1] != '/' && url != "/")
             {
                 string redirectUrl = url + "/";
                 return handleRedirect(redirectUrl, 301);
