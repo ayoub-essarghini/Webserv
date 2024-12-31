@@ -7,18 +7,15 @@
 
 Request::Request(const std::string &request)
 {
- 
 
-        // std::string normalizedRequest = normalizeLineEndings(request);
-        parseRequest(request);
-        // validateHeaders();
-      
-    
-  
+    // std::string normalizedRequest = normalizeLineEndings(request);
+    parseRequest(request);
+    // validateHeaders();
 }
 
 void Request::parseRequest(const std::string &request)
 {
+    std:: cout << "Parsing request\n" << request << std::endl << " \n\n ending of request\n\n"; 
     size_t pos = 0;
 
     if (request.empty())
@@ -28,40 +25,56 @@ void Request::parseRequest(const std::string &request)
 
     parseRequestLine(request, pos);
     parseHeaders(request, pos);
-
-    // if (headers.count("Content-Length"))
-    // {
-    //     parseBody(request, pos);
-    // }
+    if (method != "GET")
+    {
+        parseBody(request, pos);
+    }
 
     decoded_path = validatePath(path);
 }
+
+void Request::validateLineEndings(const std::string &request, size_t &pos)
+{
+
+    std::string lineEnding = request.substr(pos, 2);
+    std::cout << "Line ending: " << lineEnding << std::endl;
+    if (lineEnding != "\r\n" && lineEnding != "\n")
+    {
+        throw std::runtime_error("400 Bad Request: Invalid line ending");
+    }
+   
+}
+
 void Request::parseRequestLine(const std::string &request, size_t &pos)
 {
     size_t pos2 = 0;
     std::string line = extractToken(request, pos2, '\r');
-    pos  = pos2;
+    pos = pos2;
     char *check = (char *)line.c_str();
     bool valid = false;
     int i = 0;
     while (check[i])
     {
         if ((check[i] == ' ' && check[i + 1] == ' ') || (check[i] == '\t' && check[i + 1] == '\t') || (check[i] == ' ' && check[i + 1] == '\t') || (check[i] == '\t' && check[i + 1] == ' '))
-            throw std::runtime_error("Expected continuos spaces");
+            throw std::runtime_error("Expected continuous spaces");
         i++;
     }
-    std::string last ;
+    std::string last;
     std::stringstream ss(line);
     ss >> method >> path >> version >> last;
+
+    validateMethod(method);
 
     if (!last.empty())
         throw std::runtime_error("malformed request");
     if (version != "HTTP/1.1")
         throw std::runtime_error("500 Unsupported HTTP version");
-    
-    std::cout << method << std::endl << path << std::endl << version << std::endl;
-  
-    validateLineTermination(request, pos);
+
+    std::cout << method << std::endl
+              << path << std::endl
+              << version << std::endl;
+
+    validateLineEndings(request, pos);
 }
 
 void Request::parseHeaders(const std::string &request, size_t &pos)
@@ -70,7 +83,7 @@ void Request::parseHeaders(const std::string &request, size_t &pos)
     {
         std::string line = extractToken(request, pos, '\r');
         std::cout << "extract token parsed" << std::endl;
-        validateLineTermination(request, pos);
+        validateLineEndings(request, pos);
 
         size_t separator = line.find(":");
         if (separator == std::string::npos)
@@ -92,7 +105,7 @@ void Request::parseHeaders(const std::string &request, size_t &pos)
 
     std::cout << "header line parsed" << std::endl;
 
-    validateLineTermination(request, pos);
+    // validateLineTermination(request, pos);
 }
 
 void Request::parseBody(const std::string &request, size_t &pos)
@@ -196,7 +209,7 @@ bool Request::isBadUri(const std::string &uri)
         }
 
         // Check for control characters and non-ASCII characters
-        if (c < 0x20 || c > 0x7E)
+        if (c < 32 || c > 126)
         {
             return true;
         }
@@ -214,7 +227,7 @@ bool Request::isBadUri(const std::string &uri)
             for (size_t j = i + 1; j < uri.length(); ++j)
             {
                 char fc = uri[j];
-                if (fc < 0x20 || fc > 0x7E || (fc != '#' && allowed.find(fc) == std::string::npos))
+                if (fc < 32 || fc > 126 || (fc != '#' && allowed.find(fc) == std::string::npos))
                 {
                     return true;
                 }
@@ -275,7 +288,7 @@ std::string Request::validatePath(const std::string &path)
             char decodedChar = hexToChar(path[i + 1], path[i + 2]);
 
             // Check if decoded character is valid
-            if (decodedChar < 0x20 || decodedChar > 0x7E)
+            if (decodedChar < 32 || decodedChar > 126)
             {
                 throw std::runtime_error("400 Bad Request: Invalid decoded character");
             }
@@ -334,22 +347,4 @@ bool Request::isBadUriTraversal(const std::string &uri)
     }
 
     return false;
-}
-
-void Request::validateLineTermination(const std::string &request, size_t &pos)
-{
-    // Check for lone LF (netcat style)
-    if (pos < request.size() && request[pos] == '\n')
-    {
-        pos += 1; // Skip the \n
-        return;
-    }
-    // Also accept CRLF
-    else if (pos + 1 < request.size() && request[pos] == '\r' && request[pos + 1] == '\n')
-    {
-        pos += 2; // Skip both \r\n
-        return;
-    }
-    // No valid line termination found
-    throw std::runtime_error("400 Bad Request: Invalid line termination");
 }

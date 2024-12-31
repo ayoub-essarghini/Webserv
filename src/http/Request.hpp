@@ -47,7 +47,7 @@ private:
     std::string extractToken(const std::string &request, size_t &pos, char delimiter);
     std::string validatePath(const std::string &path);
     void validateMethod(const std::string &method);
-    void validateLineTermination(const std::string &request, size_t &pos);
+    void validateLineEndings(const std::string &request, size_t &pos);
     bool isHexDigit(char c);
     char hexToChar(char high, char low);
     std::string normalizeLineEndings(const std::string &request);
