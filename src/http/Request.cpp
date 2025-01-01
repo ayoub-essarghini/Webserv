@@ -89,6 +89,7 @@ void Request::parseRequestLine(const std::string &request, size_t &pos)
     if (path.find('?') != std::string::npos)
     {
         size_t queryStart = path.find('?');
+        std::cout << path.substr(queryStart + 1) << std::endl;
         query_params = parseParams(path.substr(queryStart + 1));
         path = path.substr(0, queryStart);
     }
