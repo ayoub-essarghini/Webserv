@@ -1,7 +1,6 @@
 #include "Request.hpp"
 #include <sstream>
 #include <iostream>
-#include <stdexcept>
 #include <cctype>
 #include <algorithm>
 
@@ -15,7 +14,6 @@ Request::Request(const std::string &request)
 
 void Request::parseRequest(const std::string &request)
 {
-    std:: cout << "Parsing request\n" << request << std::endl << " \n\n ending of request\n\n"; 
     size_t pos = 0;
 
     if (request.empty())
@@ -23,9 +21,17 @@ void Request::parseRequest(const std::string &request)
         throw std::runtime_error("400 Bad Request: Empty request");
     }
 
+    // Parse request line
     parseRequestLine(request, pos);
+    
+    // Parse headers
     parseHeaders(request, pos);
-    if (method != "GET")
+
+    // Validate required headers
+    validateHeaders();
+
+    // Parse body for non-GET requests
+    if (method != "GET" && headers.count("Content-Length") > 0)
     {
         parseBody(request, pos);
     }
@@ -35,14 +41,19 @@ void Request::parseRequest(const std::string &request)
 
 void Request::validateLineEndings(const std::string &request, size_t &pos)
 {
-
-    std::string lineEnding = request.substr(pos, 2);
-    std::cout << "Line ending: " << lineEnding << std::endl;
-    if (lineEnding != "\r\n" && lineEnding != "\n")
+    if (pos >= request.size() || request[pos] != '\r')
     {
-        throw std::runtime_error("400 Bad Request: Invalid line ending");
+        throw std::runtime_error("400 Bad Request: Malformed request");
     }
-   
+
+    pos++;
+
+    if (pos >= request.size() || request[pos] != '\n')
+    {
+        throw std::runtime_error("400 Bad Request: Malformed request");
+    }
+
+    pos++;
 }
 
 void Request::parseRequestLine(const std::string &request, size_t &pos)
@@ -50,6 +61,7 @@ void Request::parseRequestLine(const std::string &request, size_t &pos)
     size_t pos2 = 0;
     std::string line = extractToken(request, pos2, '\r');
     pos = pos2;
+    // validateLineEndings(request, pos);
     char *check = (char *)line.c_str();
     bool valid = false;
     int i = 0;
@@ -74,21 +86,36 @@ void Request::parseRequestLine(const std::string &request, size_t &pos)
               << path << std::endl
               << version << std::endl;
 
-    validateLineEndings(request, pos);
+    if (path.find('?') != std::string::npos)
+    {
+        size_t queryStart = path.find('?');
+        query_params = parseParams(path.substr(queryStart + 1));
+        path = path.substr(0, queryStart);
+    }
+
+    // validateLineEndings(request, pos);
 }
 
 void Request::parseHeaders(const std::string &request, size_t &pos)
 {
-    while (pos < request.size() && request[pos] != '\r' && request[pos] != '\n')
+    while (pos < request.size())
     {
-        std::string line = extractToken(request, pos, '\r');
-        std::cout << "extract token parsed" << std::endl;
-        validateLineEndings(request, pos);
+        // Check for end of headers (empty line)
+        if (request[pos] == '\r')
+        {
+            if (pos + 1 >= request.size() || request[pos + 1] != '\n')
+            {
+                throw std::runtime_error("400 Bad Request: Expected CRLF");
+            }
+            pos += 2; // Skip the empty line
+            break;
+        }
 
-        size_t separator = line.find(":");
+        std::string line = extractToken(request, pos, '\r');
+        
+        size_t separator = line.find(':');
         if (separator == std::string::npos)
         {
-            std::cout << "400 Bad Request: Malformed header" << std::endl;
             throw std::runtime_error("400 Bad Request: Malformed header");
         }
 
@@ -102,10 +129,6 @@ void Request::parseHeaders(const std::string &request, size_t &pos)
 
         headers[name] = value;
     }
-
-    std::cout << "header line parsed" << std::endl;
-
-    // validateLineTermination(request, pos);
 }
 
 void Request::parseBody(const std::string &request, size_t &pos)
@@ -129,7 +152,7 @@ void Request::validateHeaders()
 std::string Request::extractToken(const std::string &request, size_t &pos, char delimiter)
 {
     size_t start = pos;
-    while (pos < request.size() && request[pos] != delimiter && request[pos] != '\n')
+    while (pos < request.size() && request[pos] != '\r')
     {
         pos++;
     }
@@ -140,8 +163,14 @@ std::string Request::extractToken(const std::string &request, size_t &pos, char 
     }
 
     std::string token = request.substr(start, pos - start);
-    std::cout << "Extracted token: " << token << std::endl;
-    pos++;
+    
+    // Skip \r\n sequence
+    if (pos + 1 >= request.size() || request[pos + 1] != '\n')
+    {
+        throw std::runtime_error("400 Bad Request: Expected CRLF");
+    }
+    pos += 2; // Skip both \r and \n
+    
     return token;
 }
 
@@ -173,14 +202,7 @@ std::string Request::trim(const std::string &str)
     return (start == std::string::npos || end == std::string::npos) ? "" : str.substr(start, end - start + 1);
 }
 
-bool Request::isValid() const { return validRequest; }
-std::string Request::getStatusMessage() const { return statusMessage; }
-const std::string &Request::getMethod() const { return method; }
-const std::string &Request::getPath() const { return path; }
-const std::string &Request::getDecodedPath() const { return decoded_path; }
-const std::string &Request::getVersion() const { return version; }
-const std::map<std::string, std::string> &Request::getHeaders() const { return headers; }
-const std::string &Request::getBody() const { return body; }
+
 
 bool Request::isBadUri(const std::string &uri)
 {
@@ -219,6 +241,9 @@ bool Request::isBadUri(const std::string &uri)
         {
             return true;
         }
+
+
+
 
         // Special handling for fragment identifier (#)
         if (c == '#')
@@ -348,3 +373,38 @@ bool Request::isBadUriTraversal(const std::string &uri)
 
     return false;
 }
+
+std::map<std::string, std::string> Request::parseParams(const std::string &query)
+{
+    std::map<std::string, std::string> params;
+
+    std::string::const_iterator start = query.begin();
+    std::string::const_iterator it = query.begin();
+    std::string key, value;
+    for (; it != query.end(); ++it)
+    {
+        if (*it == '=' && start != it)
+        {
+            key = trim(std::string(start, it));
+            start = it + 1;
+        }
+        else if (*it == '&' && !key.empty())
+        {
+            value = trim(std::string(start, it));
+            params[key] = value;
+            start = it + 1;
+            key.clear();
+            value.clear();
+        }
+    }
+    return params;
+}
+
+bool Request::isValid() const { return validRequest; }
+std::string Request::getStatusMessage() const { return statusMessage; }
+const std::string &Request::getMethod() const { return method; }
+const std::string &Request::getPath() const { return path; }
+const std::string &Request::getDecodedPath() const { return decoded_path; }
+const std::string &Request::getVersion() const { return version; }
+const std::map<std::string, std::string> &Request::getHeaders() const { return headers; }
+const std::string &Request::getBody() const { return body; }
