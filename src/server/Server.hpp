@@ -2,6 +2,7 @@
 
 #include "../http/Socket.hpp"
 #include "../http/Request.hpp"
+#include "../http/HttpParser.hpp"
 #include "../http/Response.hpp"
 #include "../config/Config.hpp"
 #include <string>
@@ -38,3 +39,7 @@ private:
     std::string checkResource(const std::string& fullPath);
     string requestToParse;
 };
+
+ostream &operator<<(ostream &os, const Request &request);
+ostream &operator<<(ostream &os, const Response &response);
+

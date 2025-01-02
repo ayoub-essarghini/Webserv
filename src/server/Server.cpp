@@ -99,17 +99,27 @@ void Server::handleRequest(int client_sockfd, string req)
     // Parse the incoming request
     try
     {
-        Request request(req);
-        string response_body = processRequest(request);
+        HttpParser parser;
+        Request request = parser.parse(req);
 
-        // Create and send response
-        Response response;
-        response.setStatus(200, "OK");
-        response.addHeader("Content-Type", "text/html");
-        response.setBody(response_body);
+        cout << request << endl;
+        
 
-        string response_str = response.getResponse();
-        write(client_sockfd, response_str.c_str(), response_str.length());
+        // Debug parsed request
+      
+
+
+        // Request request(req);
+        // string response_body = processRequest(request);
+
+        // // Create and send response
+        // Response response;
+        // response.setStatus(200, "OK");
+        // response.addHeader("Content-Type", "text/html");
+        // response.setBody(response_body);
+
+        // string response_str = response.getResponse();
+        // write(client_sockfd, response_str.c_str(), response_str.length());
     }
     catch (const std::exception &e)
     {
@@ -454,4 +464,18 @@ string Server::generateErrorPage(int statusCode)
     stringstream errorPage;
     errorPage << "<html><body><h1>" << statusCode << " " << "</h1></body></html>";
     return errorPage.str();
+}
+
+ostream &operator<<(ostream &os, const Request &request)
+{
+    os << "-------------Method:---------\n " << request.getMethod() << endl;
+    os << "-------------URI:----------\n" << request.getPath() << endl;
+    os << "-------------Version:---------\n " << request.getVersion() << endl;
+    os << "-------------Headers:----------\n" << endl;
+    for (const auto &header : request.getHeaders())
+    {
+        os << header.first << ": " << header.second << endl;
+    }
+    os << "---------------Body:----------------\n" << request.getBody() << endl;
+    return os;
 }
