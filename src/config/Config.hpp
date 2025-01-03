@@ -2,35 +2,11 @@
 #include <iostream>
 #include <map>
 #include <vector>
-using namespace std;
-struct Location
-{
-    string root;
-    vector<string> allow_methods;
-    bool autoindex;
-    vector<string> index_files;
-    size_t client_max_body_size;
-    string upload_dir;
-    string redirect;
-    int redirectCode;
-    // Location operator=(const Location &other)
-    // {
-    //     if (this != &other)
-    //     {
-    //         this->root = other.root;
-    //         this->allow_methods = other.allow_methods;
-    //         this->autoindex = other.autoindex;
-    //         this->client_max_body_size = other.client_max_body_size;
-    //         this->index_files = other.index_files;
-    //         this->upload_dir = other.upload_dir;
-    //         this->redirect = other.redirect;
-    //         this->redirectCode = other.redirectCode;
-    //     }
-    //     return *this;
-    // }
-
-    Location() : autoindex(false), client_max_body_size(0) {}
-};
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+#include <iostream>
+#include "../utils/MyType.hpp"
 
 class Config
 {

@@ -18,42 +18,46 @@ File_Type ServerUtils::checkResource(const std::string &fullPath)
     }
 }
 
-string ServerUtils::serveFile(const string &filePath)
+ResponseInfos ServerUtils::serveFile(const string &filePath, int code)
 {
     ifstream file(filePath, ios::in | ios::binary);
     if (!file.is_open())
-    {
-        return generateErrorPage(404);
-    }
+        return ServerUtils::ressourceToResponse(generateErrorPage(NOT_FOUND), NOT_FOUND);
 
     stringstream buffer;
     buffer << file.rdbuf();
-    return buffer.str();
+    file.close();
+    // cout << "BUFFER: \n" << buffer.str() << endl;
+    return ServerUtils::ressourceToResponse(buffer.str(), code);
 }
 
-string ServerUtils::serverRootOrRedirect(RessourceInfo ressource)
+ResponseInfos ServerUtils::serverRootOrRedirect(RessourceInfo ressource)
 {
     if (ressource.url[ressource.url.length() - 1] != '/' && ressource.url != "/")
     {
         string redirectUrl = ressource.url + "/";
-        return handleRedirect(redirectUrl, 301);
+        return ressourceToResponse(handleRedirect(redirectUrl, REDIRECTED), REDIRECTED);
     }
     vector<string>::const_iterator inedxIter = ressource.indexFiles.begin();
     for (; inedxIter != ressource.indexFiles.end(); inedxIter++)
     {
-        string indexPath = "src/" + ressource.root + "/" + *inedxIter;
+        string indexPath;
+        if (ressource.autoindex)
+            indexPath = "src" + ressource.root + "/" + ressource.url + '/' + *inedxIter;
+        else
+            indexPath = "src/" + ressource.root + "/" + *inedxIter;
         cout << "--------here-------\n";
         cout << indexPath << "\n";
         cout << "---------------\n";
         struct stat indexStat;
         if (stat(indexPath.c_str(), &indexStat) == 0)
         {
-            return ServerUtils::serveFile(indexPath);
+            return ServerUtils::serveFile(indexPath, OK);
         }
     }
     if (ressource.autoindex)
         return ServerUtils::generateDirectoryListing(ressource.url);
-    return ServerUtils::serveFile("src/www/404.html"); // should be 403
+    return ServerUtils::serveFile("src/www/404.html", NOT_FOUND); // should be 403
 }
 
 string ServerUtils::handleRedirect(const string &redirectUrl, int statusCode)
@@ -70,12 +74,12 @@ string ServerUtils::handleRedirect(const string &redirectUrl, int statusCode)
     return redirectResponseObj.getResponse();
 }
 
-string ServerUtils::generateDirectoryListing(const string &dirPath)
+ResponseInfos ServerUtils::generateDirectoryListing(const string &dirPath)
 {
     DIR *dir = opendir(dirPath.c_str());
     if (!dir)
     {
-        return ServerUtils::generateErrorPage(403);
+        return ressourceToResponse(ServerUtils::generateErrorPage(FORBIDEN), FORBIDEN);
     }
 
     struct dirent *entry;
@@ -86,15 +90,15 @@ string ServerUtils::generateDirectoryListing(const string &dirPath)
     while ((entry = readdir(dir)) != nullptr)
     {
         // Skip . and .. directories
-        if (string(entry->d_name) == "." || string(entry->d_name) == "..")
-            continue;
+        // if (string(entry->d_name) == "." || string(entry->d_name) == "..")
+        //     continue;
 
         dirContent << "<li><a href=\"" << entry->d_name << "\">" << entry->d_name << "</a></li>";
     }
 
     dirContent << "</ul></body></html>";
     closedir(dir);
-    return dirContent.str();
+    return ressourceToResponse(dirContent.str(), OK);
 }
 
 std::string ServerUtils::getMimeType(const std::string &filePath)
@@ -134,10 +138,39 @@ std::string ServerUtils::getMimeType(const std::string &filePath)
     return "application/octet-stream"; // Default MIME type for binary files
 }
 
+ResponseInfos ServerUtils::ressourceToResponse(string ressource, int code)
+{
+    ResponseInfos response_infos;
+    response_infos.body = ressource;
+    response_infos.status = code;
+    response_infos.statusMessage = Request::generateStatusMsg(code);
+    response_infos.headers["Content-Type"] = "text/html";
+    response_infos.headers["Content-Length"] = to_string(ressource.length());
+    response_infos.headers["Connection"] = "close";
+
+    return response_infos;
+}
+
 string ServerUtils::generateErrorPage(int statusCode)
 {
 
     stringstream errorPage;
     errorPage << "<html><body><h1>" << statusCode << " " << "</h1></body></html>";
     return errorPage.str();
+}
+
+ostream &operator<<(ostream &os, const ResponseInfos &response)
+{
+    os << "Status: \n"
+       << response.status << " " << response.statusMessage << endl;
+    os << "Headers: \n"
+       << endl;
+    for (const auto &header : response.headers)
+    {
+        os << header.first << ": " << header.second << endl;
+    }
+    os << "Body: \n"
+       << endl;
+    os << response.body << endl;
+    return os;
 }

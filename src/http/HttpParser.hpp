@@ -4,18 +4,6 @@
 #include "Request.hpp"
 #include "../utils/MyType.hpp"
 
-using namespace std;
-
-
-
-#define BAD_REQUEST 400
-#define NOT_IMPLEMENTED 405
-#define NOT_FOUND 404
-#define URI_TOO_LONG 414
-#define VERSION_NOT_SUPPORTED 505
-
-
-
 class HttpParser {
 public:
     HttpParser();

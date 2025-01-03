@@ -1,5 +1,5 @@
 #include "Response.hpp"
-#include <sstream>
+
 
 Response::Response() : status_code(200), status_message("OK") {}
 
@@ -29,5 +29,6 @@ string Response::getResponse() const
     }
     ss << "\r\n"
        << body;
+    // cout << "hh\r\n" << ss.str() << "hh" << endl;
     return ss.str();
 }

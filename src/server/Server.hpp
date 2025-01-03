@@ -30,13 +30,14 @@ public:
 private:
     Socket server_socket;
     Config server_config;
+    ResponseInfos response_info;
     void handleRequest(int client_sockfd, string req);
     string readRequest(int client_sockfd);
-    string processRequest(const Request &request);
-    string handleGet(const Request &request);
-    string handlePost(const Request &request);
-    string handleDelete(const Request &request);
-    string serveRessourceOrFail(RessourceInfo ressource);
+    ResponseInfos processRequest(const Request &request);
+    ResponseInfos handleGet(const Request &request);
+    ResponseInfos handlePost(const Request &request);
+    ResponseInfos handleDelete(const Request &request);
+    ResponseInfos serveRessourceOrFail(RessourceInfo ressource);
     bool matchLocation(Location &loc, const string url);
 
     string requestToParse;

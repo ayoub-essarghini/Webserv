@@ -83,48 +83,58 @@ void Server::start()
 
 void Server::handleRequest(int client_sockfd, string req)
 {
-
+    string response_str;
+    Response response;
     try
     {
+
         HttpParser parser;
         Request request = parser.parse(req);
 
         cout << request << endl;
 
-        string response_body = processRequest(request);
+        ResponseInfos responseInfos;
+        response_info = processRequest(request);
+        cout << responseInfos << endl;
 
-        Response response;
-        response.setStatus(200, "OK");
+        response.setStatus(response_info.status, response_info.statusMessage);
         response.addHeader("Content-Type", "text/html");
-        response.setBody(response_body);
+        if (response_info.status == REDIRECTED)
+        {
+            response.addHeader("Location", request.getPath()+"/");
+        }
+        response.setBody(response_info.body);
 
-        string response_str = response.getResponse();
+        response_str = response.getResponse();
+
         write(client_sockfd, response_str.c_str(), response_str.length());
     }
     catch (int &code)
     {
-        Response response2;
-        response2.setStatus(code, Request::generateStatusMsg(code));
-        cout << "Test \n"
-             << code << Request::generateStatusMsg(code) << endl;
-        response2.addHeader(to_string(code), Request::generateStatusMsg(code));
-        response2.addHeader("Content-Type", "text/html");
-        response2.setBody(Request::generateErrorPage(code));
-        string response_res = response2.getResponse();
-        cout << "response :\r\n"
-             << response_res << endl;
-        write(client_sockfd, response_res.c_str(), response_res.length());
+        response.setStatus(code, Request::generateStatusMsg(code));
+        response.addHeader(to_string(code), Request::generateStatusMsg(code));
+        response.addHeader("Content-Type", "text/html");
+        response.setBody(Request::generateErrorPage(code));
+        response_str = response.getResponse();
+
+        write(client_sockfd, response_str.c_str(), response_str.length());
+    }
+    catch (exception &e)
+    {
+        cerr << e.what() << endl;
     }
 }
 
-string Server::processRequest(const Request &request)
+ResponseInfos Server::processRequest(const Request &request)
 {
     if (request.getMethod() == "GET")
     {
         return handleGet(request);
     }
+
     else if (request.getMethod() == "POST")
     {
+
         return handlePost(request);
     }
     else if (request.getMethod() == "DELETE")
@@ -133,18 +143,18 @@ string Server::processRequest(const Request &request)
     }
     else
     {
-        return ServerUtils::generateErrorPage(405);
+
+        return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_IMPLEMENTED), NOT_IMPLEMENTED);
     }
 }
 
-string Server::handleGet(const Request &request)
+ResponseInfos Server::handleGet(const Request &request)
 {
     string url = request.getDecodedPath();
     Location bestMatch;
-
-    RessourceInfo ressource;
     if (!matchLocation(bestMatch, url))
     {
+        RessourceInfo ressource;
         string f_path = "src/" + server_config.getRoot() + url;
         ressource.autoindex = false;
         ressource.indexFiles = server_config.getIndexFiles();
@@ -152,72 +162,26 @@ string Server::handleGet(const Request &request)
         ressource.root = server_config.getRoot();
         ressource.url = url;
         // std::cout << "No matching location found" << std::endl;
+        // cout << "handle get function 1 \n"<< serveRessourceOrFail(ressource) << endl;
         return serveRessourceOrFail(ressource);
     }
 
     std::cout << "Best matching location: " << bestMatch << std::endl;
-
+    RessourceInfo ressource;
     // // Construct full filesystem path
+    cout << "URL: " << url << endl;
     string fullPath = "src" + bestMatch.root + url;
-    ressource.autoindex = false;
+    ressource.autoindex = true;
     ressource.indexFiles = bestMatch.index_files;
     ressource.path = fullPath;
     ressource.root = bestMatch.root;
     ressource.url = url;
+
+    // cout << "handle get function 2\n"<< serveRessourceOrFail(ressource) << endl;
     return serveRessourceOrFail(ressource);
-
-    // cout << "Full Path is : " << fullPath << endl;
-
-    // // Check if path exists
-    // struct stat pathStat;
-    // if (stat(fullPath.c_str(), &pathStat) != 0)
-    // {
-
-    //     std::cout << "Resource not found: " << fullPath << std::endl;
-    //     return ServerUtils::serveFile("src/www/404.html");
-    // }
-
-    // // Handle directory
-    // if (S_ISDIR(pathStat.st_mode))
-    // {
-
-    //     // Redirect if no trailing slash
-    //     if (url[url.length() - 1] != '/')
-    //     {
-    //         string redirectUrl = url + "/";
-    //         return ServerUtils::handleRedirect(redirectUrl, 301);
-    //     }
-
-    //     // Check for index files first
-    //     for (const auto &indexFile : bestMatch.index_files)
-    //     {
-    //         string indexPath = fullPath + "/" + indexFile;
-    //         struct stat indexStat;
-    //         if (stat(indexPath.c_str(), &indexStat) == 0)
-    //         {
-    //             return ServerUtils::serveFile(indexPath);
-    //         }
-    //     }
-
-    //     // If no index file and autoindex is enabled
-    //     if (bestMatch.autoindex)
-    //     {
-    //         return ServerUtils::generateDirectoryListing(fullPath);
-    //     }
-
-    //     return ServerUtils::generateErrorPage(403);
-    // }
-    // // Handle regular file
-    // else if (S_ISREG(pathStat.st_mode))
-    // {
-
-    //     return ServerUtils::serveFile(fullPath);
-    // }
-
-    // return ServerUtils::serveFile("src/www/404.html");
 }
 
-string Server::handlePost(const Request &request)
+ResponseInfos Server::handlePost(const Request &request)
 {
     map<string, Location> locs = server_config.getLocations();
     string url = request.getDecodedPath();
@@ -243,13 +207,14 @@ string Server::handlePost(const Request &request)
     if (found)
     {
         string body = request.getBody();
-        return "<html><body><h1>POST Data Received:</h1><p>" + body + "</p></body></html>";
+        return ServerUtils::ressourceToResponse("<html><body><h1>POST Data Received:</h1><p>" + body + "</p></body></html>", CREATED);
+        ;
     }
 
-    return ServerUtils::generateErrorPage(404);
+    return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_FOUND), NOT_FOUND);
 }
 
-string Server::handleDelete(const Request &request)
+ResponseInfos Server::handleDelete(const Request &request)
 {
     map<string, Location> locs = server_config.getLocations();
     string url = request.getDecodedPath();
@@ -274,10 +239,10 @@ string Server::handleDelete(const Request &request)
 
     if (found)
     {
-        return "<html><body><h1>DELETE Operation Successful on " + bestMatch.root + "</h1></body></html>";
+        return ServerUtils::ressourceToResponse("<html><body><h1>DELETE Operation Successful on " + bestMatch.root + "</h1></body></html>", CREATED);
     }
 
-    return ServerUtils::generateErrorPage(404);
+    return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_FOUND), NOT_FOUND);
 }
 
 bool Server::matchLocation(Location &loc, const string url)
@@ -310,7 +275,7 @@ bool Server::matchLocation(Location &loc, const string url)
     return found;
 }
 
-string Server::serveRessourceOrFail(RessourceInfo ressource)
+ResponseInfos Server::serveRessourceOrFail(RessourceInfo ressource)
 {
 
     switch (ServerUtils::checkResource(ressource.path))
@@ -319,13 +284,13 @@ string Server::serveRessourceOrFail(RessourceInfo ressource)
         return ServerUtils::serverRootOrRedirect(ressource);
         break;
     case REGULAR:
-        return ServerUtils::serveFile(ressource.path);
+        return ServerUtils::serveFile(ressource.path, OK);
         break;
     case NOT_EXIST:
-        return ServerUtils::serveFile("src/www/404.html");
+        return ServerUtils::serveFile("src/www/404.html", NOT_FOUND);
         break;
     case UNDEFINED:
-        return ServerUtils::serveFile("src/www/404.html");
+        return ServerUtils::serveFile("src/www/404.html", NOT_FOUND);
         break;
     default:
         break;

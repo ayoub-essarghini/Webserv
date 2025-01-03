@@ -2,6 +2,9 @@
 
 #include <string>
 #include <map>
+#include <sstream>
+#include <iostream>
+#include "../utils/MyType.hpp"
 
 using namespace std;
 
