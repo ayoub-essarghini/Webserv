@@ -101,6 +101,7 @@ void Server::handleRequest(int client_sockfd, string req)
         response.addHeader("Content-Type", "text/html");
         if (response_info.status == REDIRECTED)
         {
+            cout << "STATUS : " << response_info.status << endl;
             response.addHeader("Location", request.getPath()+"/");
         }
         response.setBody(response_info.body);
@@ -183,32 +184,99 @@ ResponseInfos Server::handleGet(const Request &request)
 
 ResponseInfos Server::handlePost(const Request &request)
 {
-    map<string, Location> locs = server_config.getLocations();
-    string url = request.getDecodedPath();
+    cout << "Handling POST request......" << endl;
+    std::map<std::string, Location> locs = server_config.getLocations();
+    std::string url = request.getDecodedPath();
 
     Location bestMatch;
     size_t bestMatchLength = 0;
     bool found = false;
 
-    for (const auto &loc : locs)
-    {
-        const string &locationPath = loc.first;
-        if (url.find(locationPath) == 0 && (url == locationPath || url[locationPath.length()] == '/'))
-        {
-            if (locationPath.length() > bestMatchLength)
-            {
-                found = true;
-                bestMatch = loc.second;
-                bestMatchLength = locationPath.length();
-            }
-        }
-    }
+    
 
-    if (found)
+    if (matchLocation(bestMatch, url))
     {
-        string body = request.getBody();
-        return ServerUtils::ressourceToResponse("<html><body><h1>POST Data Received:</h1><p>" + body + "</p></body></html>", CREATED);
-        ;
+
+        cout << "Best matching location: " << bestMatch << std::endl;
+        std::string contentType = request.getHeaders().at("Content-Type");
+        if (contentType.find("multipart/form-data") != std::string::npos)
+        {
+            // Extract boundary from Content-Type header
+            size_t boundaryPos = contentType.find("boundary=");
+            if (boundaryPos == std::string::npos)
+            {
+                return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(BAD_REQUEST), BAD_REQUEST);
+            }
+
+            cout << "Boundary:found" << endl;
+            std::string boundary = "--" + contentType.substr(boundaryPos + 9);
+
+            // Split body using boundary
+            std::string body = request.getBody();
+            std::vector<std::string> parts;
+            size_t start = 0, end;
+            while ((end = body.find(boundary, start)) != std::string::npos)
+            {
+                parts.push_back(body.substr(start, end - start));
+                start = end + boundary.length();
+            }
+
+            // Parse each part
+            for (std::vector<std::string>::const_iterator it = parts.begin(); it != parts.end(); ++it)
+            {
+                const std::string &part = *it;
+                if (part.empty())
+                    continue;
+
+                // Extract headers and data
+                size_t headerEnd = part.find("\r\n\r\n");
+                if (headerEnd == std::string::npos)
+                {
+                    cout << "No header end found" << endl;
+                    return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(BAD_REQUEST), BAD_REQUEST);
+                }
+                std::string headers = part.substr(0, headerEnd);
+                std::string data = part.substr(headerEnd + 4);
+
+                // Extract Content-Disposition header
+                size_t cdPos = headers.find("Content-Disposition: form-data; name=\"");
+                if (cdPos != std::string::npos)
+                {
+                    size_t nameStart = cdPos + 38;
+                    size_t nameEnd = headers.find("\"", nameStart);
+                    if (nameEnd != std::string::npos)
+                    {
+                        std::string name = headers.substr(nameStart, nameEnd - nameStart);
+                        size_t fnPos = headers.find("filename=\"", nameEnd + 1);
+                        if (fnPos != std::string::npos)
+                        {
+                            size_t fnStart = fnPos + 10;
+                            size_t fnEnd = headers.find("\"", fnStart);
+                            if (fnEnd != std::string::npos)
+                            {
+                                std::string filename = headers.substr(fnStart, fnEnd - fnStart);
+
+                                // Save file to upload directory
+                                std::string uploadPath = bestMatch.upload_dir + "/" + filename;
+                                std::ofstream outFile(uploadPath.c_str(), std::ios::binary);
+                                if (!outFile)
+                                {
+                                    return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(INTERNAL_SERVER_ERROR), INTERNAL_SERVER_ERROR);
+                                }
+                                outFile.write(data.c_str(), data.size());
+                                outFile.close();
+                            }
+                        }
+                    }
+                }
+            }
+
+            return ServerUtils::ressourceToResponse("<html><body><h1>File Uploaded Successfully</h1></body></html>", CREATED);
+        }
+        else
+        {
+            return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(BAD_REQUEST), BAD_REQUEST);
+        }
     }
 
     return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_FOUND), NOT_FOUND);

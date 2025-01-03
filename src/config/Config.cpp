@@ -68,15 +68,15 @@ void Config::parseLocation()
     l2.allow_methods.push_back("POST");
     l2.autoindex = false;
     l2.client_max_body_size = 1024 * 5;
-    l2.upload_dir = "/www/uploads";
+    l2.upload_dir = "/www/upload";
 
     Location l3;
     l3.redirect = "http://example.com";
     l3.redirectCode = 301;
 
     locations["/test/"] = l1;
-    locations["/test/test2"] = l2;
-    locations["/redirect"] = l3;
+    locations["/test/test2/"] = l2;
+    locations["/upload"] = l3;
 
 }
 
