@@ -2,6 +2,7 @@
 
 #include <string>
 #include <map>
+#include "../config/Config.hpp"
 
 class Request
 {
@@ -23,7 +24,9 @@ public:
     const std::map<std::string, std::string> &getHeaders() const;
     const std::string &getBody() const;
     const std::map<std::string, std::string> &getQueryParams() const;
-    
+    static std::string generateErrorPage(const int code);
+    static std::string generateStatusMsg(const int code);
+ 
 
     void setMethod(const std::string &method);
     void setPath(const std::string &path);

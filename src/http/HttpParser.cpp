@@ -20,7 +20,7 @@ Request HttpParser::parse(const string &data)
             }
             else
             {
-                throw std::runtime_error("400 Bad Request: Malformed request line ending");
+                throw BAD_REQUEST;
             }
         }
         else if (data[i] == '\n')
@@ -39,6 +39,8 @@ Request HttpParser::parse(const string &data)
         processLine(line);
     }
 
+    validateHeaders();
+
     if (state == BODY && method == "POST")
     {
         parseBody(body);
@@ -46,6 +48,7 @@ Request HttpParser::parse(const string &data)
     Request request;
     request.setMethod(method);
     request.setPath(uri);
+    request.setDecodedPath(uri);
     request.setVersion(version);
     request.setHeaders(headers);
     request.setBody(body);
@@ -69,7 +72,6 @@ void HttpParser::processLine(const string &line)
 
 void HttpParser::parseRequestLine(const string &line)
 {
-
     stringstream ss(line);
     string last;
     ss >> method >> uri >> version >> last;
@@ -77,10 +79,13 @@ void HttpParser::parseRequestLine(const string &line)
     if (method.empty() || uri.empty() || version.empty() || !last.empty())
     {
         std::cerr << "Invalid request line: " << line << std::endl;
-        throw std::runtime_error("400 Bad Request: Malformed request line");
+        throw BAD_REQUEST;
     }
+    if (version != "HTTP/1.1")
+        throw VERSION_NOT_SUPPORTED;
     validateMethod(method);
     uri = validatePath(uri);
+    
     if (uri.find("?") != string::npos)
     {
         size_t separator = uri.find("?");
@@ -104,7 +109,7 @@ void HttpParser::parseHeader(const string &line)
     if (separator == string::npos)
     {
         std::cerr << "Invalid header: " << line << std::endl;
-        throw std::runtime_error("400 Bad Request: Malformed header");
+        throw BAD_REQUEST;
     }
 
     string name = line.substr(0, separator);
@@ -124,15 +129,16 @@ void HttpParser::parseBody(const string &body)
         int content_length = stoi(headers["Content-Length"]);
         if (body.length() < content_length)
         {
-            throw std::runtime_error("400 Bad Request: Body length does not match Content-Length header");
+            throw BAD_REQUEST;
         }
         query_params = parseParams(body);
     }
     else
     {
+      
         if (body.find("\r\n\n") != string::npos)
         {
-            throw std::runtime_error("400 Bad request");
+            throw BAD_REQUEST;
         }
     }
 }
@@ -157,7 +163,7 @@ void HttpParser::validateHeaders()
 {
     if (!headers.count("Host"))
     {
-        throw std::runtime_error("400 Bad Request: Missing Host header");
+        throw BAD_REQUEST;
     }
 }
 
@@ -166,7 +172,7 @@ void HttpParser::validateMethod(const std::string &method)
     static const std::set<std::string> allowedMethods = {"GET", "POST", "DELETE"};
     if (allowedMethods.find(method) == allowedMethods.end())
     {
-        throw std::runtime_error("405 Method Not Allowed: Unsupported HTTP method");
+        throw NOT_IMPLEMENTED;
     }
 }
 
@@ -241,24 +247,24 @@ std::string HttpParser::validatePath(const std::string &path)
 {
     if (path.empty())
     {
-        throw std::runtime_error("400 Bad HttpParser: Empty path");
+        throw BAD_REQUEST;
     }
 
     if (path[0] != '/')
     {
-        throw std::runtime_error("400 Bad Request: Path must start with '/'");
+        throw BAD_REQUEST;
     }
 
-    if (path.length() > 2048)
+    if (path.length() > 84)
     {
-        throw std::runtime_error("414 Request-URI Too Long");
+        throw URI_TOO_LONG;
     }
 
     // Check for bad URI characters
     if (isBadUri(path))
     {
         std::cout << "Is bad uri " << std::endl;
-        throw std::runtime_error("400 Bad Request: Invalid URI characters");
+        throw BAD_REQUEST;
     }
 
     // Check for path traversal
@@ -266,7 +272,7 @@ std::string HttpParser::validatePath(const std::string &path)
     {
         std::cout << "Is Traversal uri " << std::endl;
 
-        throw std::runtime_error("400 Bad Request: Path traversal detected");
+        throw BAD_REQUEST;
     }
 
     // Decode percent-encoded characters
@@ -277,12 +283,12 @@ std::string HttpParser::validatePath(const std::string &path)
         {
             if (i + 2 >= path.size())
             {
-                throw std::runtime_error("400 Bad Request: Incomplete percent encoding");
+                throw BAD_REQUEST;
             }
 
             if (!isHexDigit(path[i + 1]) || !isHexDigit(path[i + 2]))
             {
-                throw std::runtime_error("400 Bad Request: Invalid percent encoding");
+                throw BAD_REQUEST;
             }
 
             char decodedChar = hexToChar(path[i + 1], path[i + 2]);
@@ -290,7 +296,7 @@ std::string HttpParser::validatePath(const std::string &path)
             // Check if decoded character is valid
             if (decodedChar < 32 || decodedChar > 126)
             {
-                throw std::runtime_error("400 Bad Request: Invalid decoded character");
+                throw BAD_REQUEST;
             }
 
             decoded += decodedChar;

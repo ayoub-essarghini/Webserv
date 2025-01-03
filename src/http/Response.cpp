@@ -22,7 +22,7 @@ void Response::setBody(const string &body_content)
 string Response::getResponse() const
 {
     stringstream ss;
-    ss << "HTTP/1.1 " << status_code << " " << status_message << "\r";
+    ss << "HTTP/1.1 " << status_code << " " << status_message << "\r\n";
     for (const auto &header : headers)
     {
         ss << header.first << ": " << header.second << "\r\n";

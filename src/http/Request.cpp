@@ -1,4 +1,5 @@
 #include "Request.hpp"
+#include <iomanip>
 
 Request::Request()
 {
@@ -27,6 +28,62 @@ void Request::setVersion(const std::string &version)
 void Request::setHeaders(const std::map<std::string, std::string> &headers)
 {
     this->headers = headers;
+}
+
+std::string Request::generateErrorPage(const int code)
+{
+    std::stringstream errorPage;
+    switch (code)
+    {
+    case 400:
+        errorPage << "<html><body> <center> <h1>" << code << " BAD REQUEST" << "</h1></center></body></html>";
+        break;
+    case 404:
+        errorPage << "<html><body> <center> <h1>" << code << " NOT FOUND" << "</h1></center></body></html>";
+        break;
+    case 405:
+        errorPage << "<html><body> <center> <h1>" << code << " NOT IMPLEMENTED" << "</h1></center></body></html>";
+        break;
+    case 414:
+        errorPage << "<html><body> <center> <h1>" << code << " URI TOO LONG " << "</h1></center></body></html>";
+        break;
+    case 505:
+        errorPage << "<html><body> <center> <h1>" << code << " HTTP Version Not Supported" << "</h1></center></body></html>";
+        break;
+    default:
+        break;
+    }
+    return errorPage.str();
+}
+
+std::string Request::generateStatusMsg(const int code)
+{
+    std::string msg = "";
+    switch (code)
+    {
+    case 400:
+        msg = "BAD REQUEST";
+        break;
+    case 404:
+        msg = "NOT FOUND";
+        break;
+    case 405:
+        msg = "NOT IMPLEMENTED";
+        break;
+    case 414:
+        msg = "URI TOO LONG";
+        break;
+    case 403:
+        msg = "FORBIDDEN";
+     case 505:
+        msg = "HTTP Version Not Supported";
+        break;
+
+    default:
+        break;
+    }
+
+    return msg;
 }
 
 void Request::setBody(const std::string &body)
@@ -64,7 +121,6 @@ const std::map<std::string, std::string> &Request::getHeaders() const
     return headers;
 }
 
-
 const std::string &Request::getBody() const
 {
     return body;
@@ -74,4 +130,5 @@ const std::map<std::string, std::string> &Request::getQueryParams() const
 {
     return query_params;
 }
+
 

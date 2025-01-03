@@ -8,11 +8,6 @@ int main() {
         Server server(8084,config);
         server.start();
 
-
-    
-
-     
-        
     } catch (const exception& e) {
         cerr << "Error: " << e.what() << endl;
     }
