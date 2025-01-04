@@ -1,0 +1,5 @@
+/home/aes-sarg/Desktop/webserv/build/CMakeFiles/config.dir
+/home/aes-sarg/Desktop/webserv/build/CMakeFiles/tester.dir
+/home/aes-sarg/Desktop/webserv/build/CMakeFiles/test.dir
+/home/aes-sarg/Desktop/webserv/build/CMakeFiles/edit_cache.dir
+/home/aes-sarg/Desktop/webserv/build/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,14 @@
+[
+{
+  "directory": "/home/aes-sarg/Desktop/webserv/build",
+  "command": "/usr/bin/g++ -I/home/aes-sarg/.local/include -I/home/aes-sarg/Desktop/webserv/tests/../src -g -o CMakeFiles/config.dir/home/aes-sarg/Desktop/webserv/src/config/Config.cpp.o -c /home/aes-sarg/Desktop/webserv/src/config/Config.cpp",
+  "file": "/home/aes-sarg/Desktop/webserv/src/config/Config.cpp",
+  "output": "CMakeFiles/config.dir/home/aes-sarg/Desktop/webserv/src/config/Config.cpp.o"
+},
+{
+  "directory": "/home/aes-sarg/Desktop/webserv/build",
+  "command": "/usr/bin/g++ -I/home/aes-sarg/.local/include -I/home/aes-sarg/Desktop/webserv/tests/../src -g -o CMakeFiles/tester.dir/Test.cpp.o -c /home/aes-sarg/Desktop/webserv/tests/Test.cpp",
+  "file": "/home/aes-sarg/Desktop/webserv/tests/Test.cpp",
+  "output": "CMakeFiles/tester.dir/Test.cpp.o"
+}
+]
