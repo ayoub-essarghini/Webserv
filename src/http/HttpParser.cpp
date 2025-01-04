@@ -34,6 +34,10 @@ Request HttpParser::parse(const string &data)
         }
     }
 
+    if (!(line.empty() && line.find("\r\n\r\n") && state == BODY))
+        throw BAD_REQUEST;
+        
+
     if (!line.empty())
     {
         processLine(line);
@@ -82,7 +86,9 @@ void HttpParser::parseRequestLine(const string &line)
         throw BAD_REQUEST;
     }
     if (version != "HTTP/1.1")
+    {
         throw VERSION_NOT_SUPPORTED;
+    }
     validateMethod(method);
     uri = validatePath(uri);
     

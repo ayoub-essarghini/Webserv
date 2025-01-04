@@ -93,22 +93,22 @@ void Server::handleRequest(int client_sockfd, string req)
 
         cout << request << endl;
 
-        ResponseInfos responseInfos;
-        response_info = processRequest(request);
-        cout << responseInfos << endl;
+        // ResponseInfos responseInfos;
+        // response_info = processRequest(request);
+        // cout << responseInfos << endl;
 
-        response.setStatus(response_info.status, response_info.statusMessage);
-        response.addHeader("Content-Type", "text/html");
-        if (response_info.status == REDIRECTED)
-        {
-            cout << "STATUS : " << response_info.status << endl;
-            response.addHeader("Location", request.getPath()+"/");
-        }
-        response.setBody(response_info.body);
+        // response.setStatus(response_info.status, response_info.statusMessage);
+        // response.addHeader("Content-Type", "text/html");
+        // if (response_info.status == REDIRECTED)
+        // {
+        //     cout << "STATUS : " << response_info.status << endl;
+        //     response.addHeader("Location", request.getPath()+"/");
+        // }
+        // response.setBody(response_info.body);
 
-        response_str = response.getResponse();
+        // response_str = response.getResponse();
 
-        write(client_sockfd, response_str.c_str(), response_str.length());
+        // write(client_sockfd, response_str.c_str(), response_str.length());
     }
     catch (int &code)
     {
@@ -194,63 +194,63 @@ ResponseInfos Server::handlePost(const Request &request)
     bool found = false;
 
     // Match location for the upload
-    if (matchLocation(bestMatch, url))
-    {
-        // Check if the request uses chunked transfer encoding
-        if (request.hasHeader("Transfer-Encoding") && request.getHeader("Transfer-Encoding") == "chunked")
-        {
-            // Path to save the uploaded file
-            std::string uploadPath = "src" + bestMatch.upload_dir + "/" + ServerUtils::generateUniqueString();
-            std::cout << "Uploading file to: " << uploadPath << std::endl;
+    // if (matchLocation(bestMatch, url))
+    // {
+    //     // Check if the request uses chunked transfer encoding
+    //     if (request.hasHeader("Transfer-Encoding") && request.getHeader("Transfer-Encoding") == "chunked")
+    //     {
+    //         // Path to save the uploaded file
+    //         std::string uploadPath = "src" + bestMatch.upload_dir + "/" + ServerUtils::generateUniqueString();
+    //         std::cout << "Uploading file to: " << uploadPath << std::endl;
 
-            std::ofstream outFile(uploadPath.c_str(), std::ios::binary);
-            if (!outFile)
-            {
-                return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(INTERNAL_SERVER_ERROR), INTERNAL_SERVER_ERROR);
-            }
+    //         std::ofstream outFile(uploadPath.c_str(), std::ios::binary);
+    //         if (!outFile)
+    //         {
+    //             return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(INTERNAL_SERVER_ERROR), INTERNAL_SERVER_ERROR);
+    //         }
 
-            // Process chunked transfer encoding
-            std::string chunk;
-            size_t totalBytesReceived = 0;
-            while (request.hasMoreData())
-            {
-                cout << "Request has more data" << endl;
-                chunk = request.getNextChunk();
-                cout << "Chunk: " << chunk.c_str() << endl;
-                // if (chunk.empty())
-                // {
-                //     break; // End of chunks (empty chunk indicates completion in chunked encoding)
-                // }
+    //         // Process chunked transfer encoding
+    //         std::string chunk;
+    //         size_t totalBytesReceived = 0;
+    //         while (request.hasMoreData())
+    //         {
+    //             cout << "Request has more data" << endl;
+    //             chunk = request.getNextChunk();
+    //             cout << "Chunk: " << chunk.c_str() << endl;
+    //             // if (chunk.empty())
+    //             // {
+    //             //     break; // End of chunks (empty chunk indicates completion in chunked encoding)
+    //             // }
 
-                // Write the chunk to the file
-                outFile.write(chunk.c_str(), chunk.size());
-                totalBytesReceived += chunk.size();
+    //             // Write the chunk to the file
+    //             outFile.write(chunk.c_str(), chunk.size());
+    //             totalBytesReceived += chunk.size();
 
-                std::cout << "Received chunk of size: " << chunk.size() << " bytes." << std::endl;
-            }
+    //             std::cout << "Received chunk of size: " << chunk.size() << " bytes." << std::endl;
+    //         }
 
-            outFile.close();
-            std::cout << "Upload complete, total size: " << totalBytesReceived << " bytes." << std::endl;
+    //         outFile.close();
+    //         std::cout << "Upload complete, total size: " << totalBytesReceived << " bytes." << std::endl;
 
-            return ServerUtils::ressourceToResponse("", CREATED);
-        }
-        else
-        {
-            // Handle non-chunked upload here (same as your current implementation)
-            std::string uploadPath = "src" + bestMatch.upload_dir + "/" + ServerUtils::generateUniqueString();
-            std::cout << "Uploading file to: " << uploadPath << std::endl;
+    //         return ServerUtils::ressourceToResponse("", CREATED);
+    //     }
+    //     else
+    //     {
+    //         // Handle non-chunked upload here (same as your current implementation)
+    //         std::string uploadPath = "src" + bestMatch.upload_dir + "/" + ServerUtils::generateUniqueString();
+    //         std::cout << "Uploading file to: " << uploadPath << std::endl;
 
-            std::ofstream outFile(uploadPath.c_str(), std::ios::binary);
-            if (!outFile)
-            {
-                return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(INTERNAL_SERVER_ERROR), INTERNAL_SERVER_ERROR);
-            }
-            outFile.write(request.getBody().c_str(), request.getBody().size());
-            outFile.close();
+    //         std::ofstream outFile(uploadPath.c_str(), std::ios::binary);
+    //         if (!outFile)
+    //         {
+    //             return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(INTERNAL_SERVER_ERROR), INTERNAL_SERVER_ERROR);
+    //         }
+    //         outFile.write(request.getBody().c_str(), request.getBody().size());
+    //         outFile.close();
 
-            return ServerUtils::ressourceToResponse("", CREATED);
-        }
-    }
+    //         return ServerUtils::ressourceToResponse("", CREATED);
+    //     }
+    // }
 
     return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_FOUND), NOT_FOUND);
 }

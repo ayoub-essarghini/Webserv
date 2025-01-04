@@ -42,6 +42,8 @@ ResponseInfos ServerUtils::serverRootOrRedirect(RessourceInfo ressource)
     for (; inedxIter != ressource.indexFiles.end(); inedxIter++)
     {
         string indexPath;
+
+        cout << "is indexed: " << ressource.autoindex << endl;
         if (ressource.autoindex)
             indexPath = "src" + ressource.root + "/" + ressource.url + '/' + *inedxIter;
         else
@@ -56,7 +58,7 @@ ResponseInfos ServerUtils::serverRootOrRedirect(RessourceInfo ressource)
         }
     }
     if (ressource.autoindex)
-        return ServerUtils::generateDirectoryListing(ressource.url);
+        return ServerUtils::generateDirectoryListing("src/"+ressource.root+ressource.url);
     return ServerUtils::serveFile("src/www/404.html", NOT_FOUND); // should be 403
 }
 
@@ -76,6 +78,8 @@ string ServerUtils::handleRedirect(const string &redirectUrl, int statusCode)
 
 ResponseInfos ServerUtils::generateDirectoryListing(const string &dirPath)
 {
+
+    cout << "Im here and here is the path : " << dirPath << endl;
     DIR *dir = opendir(dirPath.c_str());
     if (!dir)
     {
