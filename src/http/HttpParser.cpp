@@ -178,7 +178,7 @@ void HttpParser::validateMethod(const std::string &method)
     static const std::set<std::string> allowedMethods = {"GET", "POST", "DELETE"};
     if (allowedMethods.find(method) == allowedMethods.end())
     {
-        throw NOT_IMPLEMENTED;
+        throw NOT_ALLOWED;
     }
 }
 

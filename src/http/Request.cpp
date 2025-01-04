@@ -68,14 +68,15 @@ std::string Request::generateStatusMsg(const int code)
         msg = "NOT FOUND";
         break;
     case 405:
-        msg = "NOT IMPLEMENTED";
+        msg = "NOT ALLOWED";
         break;
     case 414:
         msg = "URI TOO LONG";
         break;
     case 403:
         msg = "FORBIDDEN";
-     case 505:
+        break;
+    case 505:
         msg = "HTTP Version Not Supported";
         break;
 
@@ -130,5 +131,3 @@ const std::map<std::string, std::string> &Request::getQueryParams() const
 {
     return query_params;
 }
-
-

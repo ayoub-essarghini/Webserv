@@ -145,7 +145,7 @@ ResponseInfos Server::processRequest(const Request &request)
     else
     {
 
-        return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_IMPLEMENTED), NOT_IMPLEMENTED);
+        return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_ALLOWED), NOT_ALLOWED);
     }
 }
 
