@@ -11,14 +11,16 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <sys/epoll.h>
+
 #include <fcntl.h>
 #include <map>
 #include <sys/stat.h>
 #include <vector>
 #include <algorithm>
 
+#define MAX_EVENTS 10
 using namespace std;
-
 
 
 class Server
@@ -29,9 +31,11 @@ public:
 
 private:
     Socket server_socket;
+  
+    vector<epoll_event> events = vector<epoll_event>(MAX_EVENTS);
     Config server_config;
-    ResponseInfos response_info;
-    void handleRequest(int client_sockfd, string req);
+    map<int,ResponseInfos> responses_info;
+    void handleRequest(int client_sockfd, string req, int epoll_fd);
     string readRequest(int client_sockfd);
     ResponseInfos processRequest(const Request &request);
     ResponseInfos handleGet(const Request &request);

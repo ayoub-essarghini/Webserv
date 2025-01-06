@@ -17,114 +17,304 @@ string Server::readRequest(int client_sockfd)
     request.append(buffer, valread);
     return request;
 }
+
 void Server::start()
 {
     server_socket.bindSocket();
     server_socket.listenSocket();
     cout << "Server is listening on port " << server_socket.getPort() << "..." << endl;
 
-    // Set server socket to non-blocking
-    // fcntl(server_socket.getSocketFd(), F_SETFL, O_NONBLOCK);
+    // Create epoll instance
+    int epoll_fd = epoll_create1(0);
+    if (epoll_fd == -1)
+    {
+        perror("epoll_create1");
+        return;
+    }
+
+    // Register server socket with epoll to monitor incoming connections
+    struct epoll_event ev;
+    ev.events = EPOLLIN;
+    ev.data.fd = server_socket.getSocketFd();
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket.getSocketFd(), &ev) == -1)
+    {
+        perror("epoll_ctl");
+        return;
+    }
+
+    // Holds events for epoll_wait
 
     while (true)
     {
-        int client_sockfd = server_socket.acceptConnection();
-        if (client_sockfd < 0)
+        // Wait for events on the server socket and any client sockets
+        int num_events = epoll_wait(epoll_fd, events.data(), events.size(), -1); // Blocking call
+        if (num_events == -1)
         {
-            if (errno == EWOULDBLOCK || errno == EAGAIN)
-            {
-                continue; // No pending connections
-            }
-            cerr << "Error accepting connection" << endl;
-            continue;
+            cerr << "epoll_wait" << endl;
+            break;
         }
 
-        // Set client socket to non-blocking
-        fcntl(client_sockfd, F_SETFL, O_NONBLOCK);
-
-        string request;
-        bool complete = false;
-        while (!complete)
+        for (int i = 0; i < num_events; ++i)
         {
-            char buffer[1024] = {0};
-            int valread = read(client_sockfd, buffer, 1024);
+            int current_fd = events[i].data.fd;
 
-            if (valread < 0)
+            if (current_fd == server_socket.getSocketFd())
             {
-                if (errno == EWOULDBLOCK || errno == EAGAIN)
+                // Server socket has incoming connections
+                int client_sockfd = server_socket.acceptConnection();
+                if (client_sockfd < 0)
                 {
-                    usleep(1000); // Short sleep to prevent CPU spinning
+                    if (errno == EWOULDBLOCK || errno == EAGAIN)
+                    {
+                        continue; // No pending connections
+                    }
+                    cerr << "Error accepting connection" << endl;
                     continue;
                 }
-                cerr << "Error reading from socket" << endl;
-                break;
+
+                // Set client socket to non-blocking
+                fcntl(client_sockfd, F_SETFL, O_NONBLOCK);
+
+                // Register client socket with epoll to monitor for reading
+                ev.events = EPOLLIN | EPOLLET; // Use edge-triggered mode for non-blocking I/O
+                ev.data.fd = client_sockfd;
+                if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_sockfd, &ev) == -1)
+                {
+                    perror("epoll_ctl");
+                    close(client_sockfd);
+                }
             }
-            else if (valread == 0)
+            else if (events[i].events & EPOLLIN)
             {
-                break; // Connection closed
+                // Client socket is ready to be read from
+                std::string request = readRequest(current_fd);
+
+                if (request.empty())
+                {
+
+                    cout << "Client has closed the connection" << endl;
+                    // Client has closed the connection
+                    close(current_fd);
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
+                }
+                else
+                {
+                    requestToParse += request;
+                    if (requestToParse.find("\r\n\r\n") != std::string::npos || requestToParse.find("\n\n") != std::string::npos)
+                    {
+                        std::cout << "Received complete request: " << request << std::endl;
+                        handleRequest(current_fd, requestToParse, epoll_fd);
+                        requestToParse.clear(); // Clear the buffer for the next request
+                        // close(current_fd);
+                        // epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
+                    }
+                    else
+                    {
+                        // Not a complete request yet, wait for more data
+                        continue;
+                    }
+                }
             }
 
-            request.append(buffer, valread);
-
-            // Check for request termination
-            if (request.find("\r\n\r\n") != string::npos || request.find("\n\n") != string::npos)
+            else if (events[i].events & EPOLLOUT)
             {
-                complete = true;
+
+                cout << "Client socket is ready to be written to" << endl;
+                // Get the stored response info for this client
+                if (responses_info.find(current_fd) != responses_info.end())
+                {
+                    Response response;
+                    ResponseInfos &response_info = responses_info[current_fd];
+
+                    // Set up response
+                    response.setStatus(response_info.status, response_info.statusMessage);
+                    response.addHeader("Content-Type", "text/html");
+                    response.setBody(response_info.body);
+
+                    string response_str = response.getResponse();
+                    ssize_t bytes_written = write(current_fd, response_str.c_str(), response_str.length());
+
+                    if (bytes_written == -1)
+                    {
+                        // Handle write error, possibly with retry logic
+                        cerr << "Error writing to socket" << endl;
+                        close(current_fd);
+                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
+                    }
+                    else if (bytes_written < response_str.length())
+                    {
+                        // If we haven't written all the data, wait for another EPOLLOUT
+                        responses_info[current_fd].body = response_str.substr(bytes_written);
+                        return;
+                    }
+
+                    // Clean up after writing the full response
+                    responses_info.erase(current_fd);
+                    close(current_fd);
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
+                }
+            }
+
+            else if (events[i].events & EPOLLERR)
+            {
+                // Handle errors for client sockets
+                std::cerr << "Error on socket: " << current_fd << std::endl;
+                close(current_fd);
+                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
             }
         }
-
-        if (complete)
-        {
-            handleRequest(client_sockfd, request);
-        }
-        close(client_sockfd);
     }
+
+    close(epoll_fd);
 }
 
-void Server::handleRequest(int client_sockfd, string req)
+void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
 {
-    string response_str;
-    Response response;
     try
     {
-
         HttpParser parser;
         Request request = parser.parse(req);
 
-        cout << request << endl;
+        // Store response info for this client socket
+        responses_info[client_sockfd] = processRequest(request);
 
-        // ResponseInfos responseInfos;
-        // response_info = processRequest(request);
-        // cout << responseInfos << endl;
+        // Modify the socket to monitor for write events (EPOLLOUT)
+        struct epoll_event ev;
+        ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
+        ev.data.fd = client_sockfd;
 
-        // response.setStatus(response_info.status, response_info.statusMessage);
-        // response.addHeader("Content-Type", "text/html");
-        // if (response_info.status == REDIRECTED)
-        // {
-        //     cout << "STATUS : " << response_info.status << endl;
-        //     response.addHeader("Location", request.getPath()+"/");
-        // }
-        // response.setBody(response_info.body);
-
-        // response_str = response.getResponse();
-
-        // write(client_sockfd, response_str.c_str(), response_str.length());
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
+        {
+            perror("epoll_ctl");
+            return;
+        }
     }
     catch (int &code)
     {
+        // If an error occurs, prepare an error response
+        Response response;
         response.setStatus(code, Request::generateStatusMsg(code));
         response.addHeader(to_string(code), Request::generateStatusMsg(code));
         response.addHeader("Content-Type", "text/html");
         response.setBody(Request::generateErrorPage(code));
-        response_str = response.getResponse();
 
-        write(client_sockfd, response_str.c_str(), response_str.length());
+        // Store response info for this client socket
+        responses_info[client_sockfd] = ServerUtils::ressourceToResponse(Request::generateErrorPage(code), code);
+
+        // Modify the socket to monitor for write events (EPOLLOUT)
+        struct epoll_event ev;
+        ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
+        ev.data.fd = client_sockfd;
+
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
+        {
+            perror("epoll_ctl");
+            return;
+        }
     }
     catch (exception &e)
     {
         cerr << e.what() << endl;
     }
 }
+
+// void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
+// {
+
+//     try
+//     {
+//         HttpParser parser;
+//         Request request = parser.parse(req);
+
+//         // Store response info for this client socket
+//         responses_info[client_sockfd] = processRequest(request);
+
+//         // Modify the socket to monitor for write events
+//         struct epoll_event ev;
+//         ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
+//         ev.data.fd = client_sockfd;
+
+//         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
+//         {
+//             perror("epoll_ctl");
+//             return;
+//         }
+//     }
+//     catch(int &code)
+//     {
+//         Response response;
+//         response.setStatus(code, Request::generateStatusMsg(code));
+//         response.addHeader(to_string(code), Request::generateStatusMsg(code));
+//         response.addHeader("Content-Type", "text/html");
+//         response.setBody(Request::generateErrorPage(code));
+
+//         // Store response info for this client socket
+//         responses_info[client_sockfd] = ServerUtils::ressourceToResponse(Request::generateErrorPage(code), code);
+
+//         // Modify the socket to monitor for write events
+//         struct epoll_event ev;
+//         ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
+//         ev.data.fd = client_sockfd;
+
+//         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
+//         {
+//             perror("epoll_ctl");
+//             return;
+//         }
+//     }
+//     catch (exception &e)
+//     {
+//         cerr << e.what() << endl;
+//     }
+//     // string response_str;
+//     // Response response;
+//     // try
+//     // {
+//     //     struct epoll_event ev;
+//     //     ev.events = EPOLLOUT | EPOLLET;
+//     //     ev.data.fd = client_sockfd;
+//     //     if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
+//     //     {
+//     //         perror("epoll_ctl");
+//     //         return;
+//     //     }
+//     //     // HttpParser parser;
+//     //     // Request request = parser.parse(req);
+
+//     //     // cout << request << endl;
+
+//     //     // ResponseInfos responseInfos;
+//     //     // response_info = processRequest(request);
+//     //     // cout << responseInfos << endl;
+
+//     //     // response.setStatus(response_info.status, response_info.statusMessage);
+//     //     // response.addHeader("Content-Type", "text/html");
+//     //     // if (response_info.status == REDIRECTED)
+//     //     // {
+//     //     //     cout << "STATUS : " << response_info.status << endl;
+//     //     //     response.addHeader("Location", request.getPath()+"/");
+//     //     // }
+//     //     // response.setBody(response_info.body);
+
+//     //     // response_str = response.getResponse();
+
+//     //     // write(client_sockfd, response_str.c_str(), response_str.length());
+//     // }
+//     // catch (int &code)
+//     // {
+//     //     response.setStatus(code, Request::generateStatusMsg(code));
+//     //     response.addHeader(to_string(code), Request::generateStatusMsg(code));
+//     //     response.addHeader("Content-Type", "text/html");
+//     //     response.setBody(Request::generateErrorPage(code));
+//     //     response_str = response.getResponse();
+
+//     //     write(client_sockfd, response_str.c_str(), response_str.length());
+//     // }
+//     // catch (exception &e)
+//     // {
+//     //     cerr << e.what() << endl;
+//     // }
+// }
 
 ResponseInfos Server::processRequest(const Request &request)
 {
@@ -184,7 +374,8 @@ ResponseInfos Server::handleGet(const Request &request)
 
 ResponseInfos Server::handlePost(const Request &request)
 {
-            std::cout << "Handling POST request......\n" << request.getBody() << std::endl;
+    std::cout << "Handling POST request......\n"
+              << request.getBody() << std::endl;
 
     std::map<std::string, Location> locs = server_config.getLocations();
     std::string url = request.getDecodedPath();
@@ -334,6 +525,7 @@ ResponseInfos Server::serveRessourceOrFail(RessourceInfo ressource)
         return ServerUtils::serveFile("src/www/404.html", NOT_FOUND);
         break;
     default:
+        return ServerUtils::serveFile("src/www/404.html", NOT_FOUND);
         break;
     }
 }
