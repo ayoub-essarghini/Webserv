@@ -22,7 +22,6 @@
 #define MAX_EVENTS 10
 using namespace std;
 
-
 class Server
 {
 public:
@@ -30,11 +29,12 @@ public:
     void start();
 
 private:
+    Request request;
     Socket server_socket;
-  
+    struct epoll_event ev;
     vector<epoll_event> events = vector<epoll_event>(MAX_EVENTS);
     Config server_config;
-    map<int,ResponseInfos> responses_info;
+    map<int, ResponseInfos> responses_info;
     void handleRequest(int client_sockfd, string req, int epoll_fd);
     string readRequest(int client_sockfd);
     ResponseInfos processRequest(const Request &request);

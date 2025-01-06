@@ -42,7 +42,7 @@ std::string Request::generateErrorPage(const int code)
         errorPage << "<html><body> <center> <h1>" << code << " NOT FOUND" << "</h1></center></body></html>";
         break;
     case 405:
-        errorPage << "<html><body> <center> <h1>" << code << " NOT IMPLEMENTED" << "</h1></center></body></html>";
+        errorPage << "<html><body> <center> <h1>" << code << " Method Not Allowed" << "</h1></center></body></html>";
         break;
     case 414:
         errorPage << "<html><body> <center> <h1>" << code << " URI TOO LONG " << "</h1></center></body></html>";
@@ -62,19 +62,19 @@ std::string Request::generateStatusMsg(const int code)
     switch (code)
     {
     case 400:
-        msg = "BAD REQUEST";
+        msg = "Bad Request";
         break;
     case 404:
-        msg = "NOT FOUND";
+        msg = "Not Found";
         break;
     case 405:
-        msg = "NOT ALLOWED";
+        msg = " Method Not Allowed";
         break;
     case 414:
         msg = "URI TOO LONG";
         break;
     case 403:
-        msg = "FORBIDDEN";
+        msg = "Forbidden";
         break;
     case 505:
         msg = "HTTP Version Not Supported";

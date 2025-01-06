@@ -33,7 +33,7 @@ void Server::start()
     }
 
     // Register server socket with epoll to monitor incoming connections
-    struct epoll_event ev;
+    
     ev.events = EPOLLIN;
     ev.data.fd = server_socket.getSocketFd();
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket.getSocketFd(), &ev) == -1)
@@ -129,6 +129,11 @@ void Server::start()
                     // Set up response
                     response.setStatus(response_info.status, response_info.statusMessage);
                     response.addHeader("Content-Type", "text/html");
+                    if (response_info.status == REDIRECTED)
+                    {
+                        response.addHeader("Location", request.getDecodedPath() + "/");
+                    }
+                   
                     response.setBody(response_info.body);
 
                     string response_str = response.getResponse();
@@ -173,13 +178,13 @@ void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
     try
     {
         HttpParser parser;
-        Request request = parser.parse(req);
+        request = parser.parse(req);
 
         // Store response info for this client socket
         responses_info[client_sockfd] = processRequest(request);
 
         // Modify the socket to monitor for write events (EPOLLOUT)
-        struct epoll_event ev;
+        
         ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
         ev.data.fd = client_sockfd;
 
@@ -202,7 +207,7 @@ void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
         responses_info[client_sockfd] = ServerUtils::ressourceToResponse(Request::generateErrorPage(code), code);
 
         // Modify the socket to monitor for write events (EPOLLOUT)
-        struct epoll_event ev;
+        
         ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
         ev.data.fd = client_sockfd;
 
@@ -218,129 +223,34 @@ void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
     }
 }
 
-// void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
-// {
-
-//     try
-//     {
-//         HttpParser parser;
-//         Request request = parser.parse(req);
-
-//         // Store response info for this client socket
-//         responses_info[client_sockfd] = processRequest(request);
-
-//         // Modify the socket to monitor for write events
-//         struct epoll_event ev;
-//         ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
-//         ev.data.fd = client_sockfd;
-
-//         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
-//         {
-//             perror("epoll_ctl");
-//             return;
-//         }
-//     }
-//     catch(int &code)
-//     {
-//         Response response;
-//         response.setStatus(code, Request::generateStatusMsg(code));
-//         response.addHeader(to_string(code), Request::generateStatusMsg(code));
-//         response.addHeader("Content-Type", "text/html");
-//         response.setBody(Request::generateErrorPage(code));
-
-//         // Store response info for this client socket
-//         responses_info[client_sockfd] = ServerUtils::ressourceToResponse(Request::generateErrorPage(code), code);
-
-//         // Modify the socket to monitor for write events
-//         struct epoll_event ev;
-//         ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
-//         ev.data.fd = client_sockfd;
-
-//         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
-//         {
-//             perror("epoll_ctl");
-//             return;
-//         }
-//     }
-//     catch (exception &e)
-//     {
-//         cerr << e.what() << endl;
-//     }
-//     // string response_str;
-//     // Response response;
-//     // try
-//     // {
-//     //     struct epoll_event ev;
-//     //     ev.events = EPOLLOUT | EPOLLET;
-//     //     ev.data.fd = client_sockfd;
-//     //     if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
-//     //     {
-//     //         perror("epoll_ctl");
-//     //         return;
-//     //     }
-//     //     // HttpParser parser;
-//     //     // Request request = parser.parse(req);
-
-//     //     // cout << request << endl;
-
-//     //     // ResponseInfos responseInfos;
-//     //     // response_info = processRequest(request);
-//     //     // cout << responseInfos << endl;
-
-//     //     // response.setStatus(response_info.status, response_info.statusMessage);
-//     //     // response.addHeader("Content-Type", "text/html");
-//     //     // if (response_info.status == REDIRECTED)
-//     //     // {
-//     //     //     cout << "STATUS : " << response_info.status << endl;
-//     //     //     response.addHeader("Location", request.getPath()+"/");
-//     //     // }
-//     //     // response.setBody(response_info.body);
-
-//     //     // response_str = response.getResponse();
-
-//     //     // write(client_sockfd, response_str.c_str(), response_str.length());
-//     // }
-//     // catch (int &code)
-//     // {
-//     //     response.setStatus(code, Request::generateStatusMsg(code));
-//     //     response.addHeader(to_string(code), Request::generateStatusMsg(code));
-//     //     response.addHeader("Content-Type", "text/html");
-//     //     response.setBody(Request::generateErrorPage(code));
-//     //     response_str = response.getResponse();
-
-//     //     write(client_sockfd, response_str.c_str(), response_str.length());
-//     // }
-//     // catch (exception &e)
-//     // {
-//     //     cerr << e.what() << endl;
-//     // }
-// }
-
 ResponseInfos Server::processRequest(const Request &request)
 {
-    if (request.getMethod() == "GET")
+    
+    if (request.getMethod() == GET)
     {
         return handleGet(request);
     }
 
-    else if (request.getMethod() == "POST")
+    else if (request.getMethod() == POST)
     {
 
         return handlePost(request);
     }
-    else if (request.getMethod() == "DELETE")
+    else if (request.getMethod() == DELETE)
     {
         return handleDelete(request);
     }
     else
     {
 
-        return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_ALLOWED), NOT_ALLOWED);
+        return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_EXIST), NOT_EXIST);
     }
 }
 
 ResponseInfos Server::handleGet(const Request &request)
 {
+
+
     string url = request.getDecodedPath();
     Location bestMatch;
     if (!matchLocation(bestMatch, url))
@@ -368,8 +278,11 @@ ResponseInfos Server::handleGet(const Request &request)
     ressource.root = bestMatch.root;
     ressource.url = url;
 
-    // cout << "handle get function 2\n"<< serveRessourceOrFail(ressource) << endl;
-    return serveRessourceOrFail(ressource);
+   
+    if (ServerUtils::isMethodAllowed(request.getMethod(), bestMatch.allow_methods))
+        return serveRessourceOrFail(ressource);
+    else
+        return ServerUtils::ressourceToResponse(Request::generateErrorPage(NOT_ALLOWED), NOT_ALLOWED);
 }
 
 ResponseInfos Server::handlePost(const Request &request)

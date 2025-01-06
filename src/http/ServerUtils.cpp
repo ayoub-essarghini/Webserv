@@ -150,7 +150,6 @@ ResponseInfos ServerUtils::ressourceToResponse(string ressource, int code)
     response_infos.statusMessage = Request::generateStatusMsg(code);
     response_infos.headers["Content-Type"] = "text/html";
     response_infos.headers["Content-Length"] = to_string(ressource.length());
-    response_infos.headers["Connection"] = "close";
 
     return response_infos;
 }
@@ -161,6 +160,20 @@ string ServerUtils::generateErrorPage(int statusCode)
     stringstream errorPage;
     errorPage << "<html><body><h1>" << statusCode << " " << "</h1></body></html>";
     return errorPage.str();
+}
+
+bool ServerUtils::isMethodAllowed(const std::string &method, const std::vector<std::string> &allowMethods)
+{
+    vector<string>::const_iterator it = allowMethods.begin();
+    while (it != allowMethods.end())
+    {
+        if (*it == method)
+        {
+            return true;
+        }
+        it++;
+    }
+    return false;
 }
 
 ostream &operator<<(ostream &os, const ResponseInfos &response)

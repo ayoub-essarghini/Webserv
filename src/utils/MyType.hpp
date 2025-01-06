@@ -16,6 +16,11 @@ using namespace std;
 #define URI_TOO_LONG 414
 #define VERSION_NOT_SUPPORTED 505
 
+
+#define GET "GET"
+#define POST "POST"
+#define DELETE "DELETE"
+
 enum File_Type
 {
     DIRECTORY,
@@ -57,6 +62,7 @@ struct ResponseInfos
     int status;
     string statusMessage;
     map<string,string> headers;
+    string location;
     string body;
 
     ResponseInfos() : status(OK), statusMessage("OK"),body("") {}
