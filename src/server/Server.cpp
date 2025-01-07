@@ -33,7 +33,7 @@ void Server::start()
     }
 
     // Register server socket with epoll to monitor incoming connections
-    
+
     ev.events = EPOLLIN;
     ev.data.fd = server_socket.getSocketFd();
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket.getSocketFd(), &ev) == -1)
@@ -91,28 +91,18 @@ void Server::start()
 
                 if (request.empty())
                 {
-
-                    cout << "Client has closed the connection" << endl;
-                    // Client has closed the connection
+                    // Connection closed
+                    if (chunked_uploads.find(current_fd) != chunked_uploads.end())
+                    {
+                        chunked_uploads[current_fd].output_file.close();
+                        chunked_uploads.erase(current_fd);
+                    }
                     close(current_fd);
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
                 }
                 else
                 {
-                    requestToParse += request;
-                    if (requestToParse.find("\r\n\r\n") != std::string::npos || requestToParse.find("\n\n") != std::string::npos)
-                    {
-                        std::cout << "Received complete request: " << request << std::endl;
-                        handleRequest(current_fd, requestToParse, epoll_fd);
-                        requestToParse.clear(); // Clear the buffer for the next request
-                        // close(current_fd);
-                        // epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
-                    }
-                    else
-                    {
-                        // Not a complete request yet, wait for more data
-                        continue;
-                    }
+                    handleRequest(current_fd, request, epoll_fd);
                 }
             }
 
@@ -133,7 +123,7 @@ void Server::start()
                     {
                         response.addHeader("Location", request.getDecodedPath() + "/");
                     }
-                   
+
                     response.setBody(response_info.body);
 
                     string response_str = response.getResponse();
@@ -173,6 +163,127 @@ void Server::start()
     close(epoll_fd);
 }
 
+// void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
+// {
+//     try
+//     {
+//         if (chunked_uploads.find(client_sockfd) == chunked_uploads.end())
+//         {
+//             // New request
+//             HttpParser parser;
+//             Request request = parser.parse(req);
+
+//             if (request.getMethod() == "POST" &&
+//                 request.hasHeader("Transfer-Encoding") &&
+//                 request.getHeader("Transfer-Encoding") == "chunked")
+//             {
+
+//                 // Initialize chunked upload state
+//                 ChunkedUploadState state;
+//                 state.headers_parsed = true;
+//                 state.content_remaining = 0;
+//                 state.upload_path = "uploads/" + ServerUtils::generateUniqueString();
+//                 state.output_file.open(state.upload_path, std::ios::binary);
+
+//                 chunked_uploads[client_sockfd] = state;
+
+//                 // Keep monitoring for more data
+//                 struct epoll_event ev;
+//                 ev.events = EPOLLIN | EPOLLET;
+//                 ev.data.fd = client_sockfd;
+//                 epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev);
+//             }
+//             else
+//             {
+//                 // Handle non-chunked request as before
+//                 responses_info[client_sockfd] = processRequest(request);
+
+//                 struct epoll_event ev;
+//                 ev.events = EPOLLOUT | EPOLLET;
+//                 ev.data.fd = client_sockfd;
+//                 epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev);
+//             }
+//         }
+//         else
+//         {
+//             // Continue processing chunked upload
+//             processChunkedData(client_sockfd, req, epoll_fd);
+//         }
+//     }
+//     catch (int code )
+//     {
+       
+//         Response response;
+//         response.setStatus(code, Request::generateStatusMsg(code));
+//         response.addHeader(to_string(code), Request::generateStatusMsg(code));
+//         response.addHeader("Content-Type", "text/html");
+//         response.setBody(Request::generateErrorPage(code));
+
+//         responses_info[client_sockfd] = ServerUtils::ressourceToResponse(Request::generateErrorPage(code), code);
+
+//         struct epoll_event ev;
+//         ev.events = EPOLLOUT | EPOLLET;
+//         ev.data.fd = client_sockfd;
+//         epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev);
+//     }
+//     catch (exception &e)
+//     {
+//         cerr << e.what() << endl;
+//     }
+// }
+
+// void Server::processChunkedData(int client_sockfd, const string &data, int epoll_fd)
+// {
+//     ChunkedUploadState &state = chunked_uploads[client_sockfd];
+//     state.partial_request += data;
+
+//     while (true)
+//     {
+//         // Find chunk size line
+//         size_t pos = state.partial_request.find("\r\n");
+//         if (pos == string::npos)
+//             return; // Need more data
+
+//         // Parse chunk size
+//         string chunk_size_str = state.partial_request.substr(0, pos);
+//         size_t chunk_size;
+//         std::stringstream ss;
+//         ss << std::hex << chunk_size_str;
+//         ss >> chunk_size;
+
+//         // Check if this is the last chunk
+//         if (chunk_size == 0)
+//         {
+//             // Upload complete
+//             state.output_file.close();
+//             chunked_uploads.erase(client_sockfd);
+
+//             // Send success response
+//             responses_info[client_sockfd] = ServerUtils::ressourceToResponse("", CREATED);
+
+//             struct epoll_event ev;
+//             ev.events = EPOLLOUT | EPOLLET;
+//             ev.data.fd = client_sockfd;
+//             epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev);
+//             return;
+//         }
+
+//         // Check if we have the full chunk
+//         if (state.partial_request.length() < pos + 2 + chunk_size + 2)
+//         {
+//             return; // Need more data
+//         }
+
+//         // Write chunk to file
+//         state.output_file.write(
+//             state.partial_request.data() + pos + 2, // Skip size line and CRLF
+//             chunk_size);
+
+//         // Remove processed chunk from buffer
+//         state.partial_request = state.partial_request.substr(pos + 2 + chunk_size + 2);
+//     }
+// }
+
 void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
 {
     try
@@ -184,7 +295,7 @@ void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
         responses_info[client_sockfd] = processRequest(request);
 
         // Modify the socket to monitor for write events (EPOLLOUT)
-        
+
         ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
         ev.data.fd = client_sockfd;
 
@@ -207,7 +318,7 @@ void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
         responses_info[client_sockfd] = ServerUtils::ressourceToResponse(Request::generateErrorPage(code), code);
 
         // Modify the socket to monitor for write events (EPOLLOUT)
-        
+
         ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
         ev.data.fd = client_sockfd;
 
@@ -225,10 +336,10 @@ void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
 
 ResponseInfos Server::processRequest(const Request &request)
 {
-    
+
     if (request.getMethod() == GET)
     {
-        return handleGet(request);
+        return handleGet(request);                                                                                                                                                               
     }
 
     else if (request.getMethod() == POST)
@@ -249,36 +360,27 @@ ResponseInfos Server::processRequest(const Request &request)
 
 ResponseInfos Server::handleGet(const Request &request)
 {
-
-
     string url = request.getDecodedPath();
     Location bestMatch;
+    RessourceInfo ressource;
     if (!matchLocation(bestMatch, url))
     {
-        RessourceInfo ressource;
-        string f_path = "src/" + server_config.getRoot() + url;
+        string f_path = server_config.getRoot() + url;
         ressource.autoindex = false;
         ressource.indexFiles = server_config.getIndexFiles();
         ressource.path = f_path;
         ressource.root = server_config.getRoot();
         ressource.url = url;
-        // std::cout << "No matching location found" << std::endl;
-        // cout << "handle get function 1 \n"<< serveRessourceOrFail(ressource) << endl;
         return serveRessourceOrFail(ressource);
     }
 
-    std::cout << "Best matching location: " << bestMatch << std::endl;
-    RessourceInfo ressource;
-    // // Construct full filesystem path
-    cout << "URL: " << url << endl;
-    string fullPath = "src" + bestMatch.root + url;
+    string fullPath = bestMatch.root + url;
     ressource.autoindex = true;
     ressource.indexFiles = bestMatch.index_files;
     ressource.path = fullPath;
     ressource.root = bestMatch.root;
     ressource.url = url;
 
-   
     if (ServerUtils::isMethodAllowed(request.getMethod(), bestMatch.allow_methods))
         return serveRessourceOrFail(ressource);
     else
@@ -287,8 +389,8 @@ ResponseInfos Server::handleGet(const Request &request)
 
 ResponseInfos Server::handlePost(const Request &request)
 {
-    std::cout << "Handling POST request......\n"
-              << request.getBody() << std::endl;
+    // std::cout << "Handling POST request......\n"
+    //   << request.getBody() << std::endl;
 
     std::map<std::string, Location> locs = server_config.getLocations();
     std::string url = request.getDecodedPath();
@@ -296,65 +398,6 @@ ResponseInfos Server::handlePost(const Request &request)
     Location bestMatch;
     size_t bestMatchLength = 0;
     bool found = false;
-
-    // Match location for the upload
-    // if (matchLocation(bestMatch, url))
-    // {
-    //     // Check if the request uses chunked transfer encoding
-    //     if (request.hasHeader("Transfer-Encoding") && request.getHeader("Transfer-Encoding") == "chunked")
-    //     {
-    //         // Path to save the uploaded file
-    //         std::string uploadPath = "src" + bestMatch.upload_dir + "/" + ServerUtils::generateUniqueString();
-    //         std::cout << "Uploading file to: " << uploadPath << std::endl;
-
-    //         std::ofstream outFile(uploadPath.c_str(), std::ios::binary);
-    //         if (!outFile)
-    //         {
-    //             return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(INTERNAL_SERVER_ERROR), INTERNAL_SERVER_ERROR);
-    //         }
-
-    //         // Process chunked transfer encoding
-    //         std::string chunk;
-    //         size_t totalBytesReceived = 0;
-    //         while (request.hasMoreData())
-    //         {
-    //             cout << "Request has more data" << endl;
-    //             chunk = request.getNextChunk();
-    //             cout << "Chunk: " << chunk.c_str() << endl;
-    //             // if (chunk.empty())
-    //             // {
-    //             //     break; // End of chunks (empty chunk indicates completion in chunked encoding)
-    //             // }
-
-    //             // Write the chunk to the file
-    //             outFile.write(chunk.c_str(), chunk.size());
-    //             totalBytesReceived += chunk.size();
-
-    //             std::cout << "Received chunk of size: " << chunk.size() << " bytes." << std::endl;
-    //         }
-
-    //         outFile.close();
-    //         std::cout << "Upload complete, total size: " << totalBytesReceived << " bytes." << std::endl;
-
-    //         return ServerUtils::ressourceToResponse("", CREATED);
-    //     }
-    //     else
-    //     {
-    //         // Handle non-chunked upload here (same as your current implementation)
-    //         std::string uploadPath = "src" + bestMatch.upload_dir + "/" + ServerUtils::generateUniqueString();
-    //         std::cout << "Uploading file to: " << uploadPath << std::endl;
-
-    //         std::ofstream outFile(uploadPath.c_str(), std::ios::binary);
-    //         if (!outFile)
-    //         {
-    //             return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(INTERNAL_SERVER_ERROR), INTERNAL_SERVER_ERROR);
-    //         }
-    //         outFile.write(request.getBody().c_str(), request.getBody().size());
-    //         outFile.close();
-
-    //         return ServerUtils::ressourceToResponse("", CREATED);
-    //     }
-    // }
 
     return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_FOUND), NOT_FOUND);
 }
@@ -423,6 +466,8 @@ bool Server::matchLocation(Location &loc, const string url)
 ResponseInfos Server::serveRessourceOrFail(RessourceInfo ressource)
 {
 
+    // cout << "serveRessourceOrFail " << ressource.path << endl;
+
     switch (ServerUtils::checkResource(ressource.path))
     {
     case DIRECTORY:
@@ -432,13 +477,13 @@ ResponseInfos Server::serveRessourceOrFail(RessourceInfo ressource)
         return ServerUtils::serveFile(ressource.path, OK);
         break;
     case NOT_EXIST:
-        return ServerUtils::serveFile("src/www/404.html", NOT_FOUND);
+        return ServerUtils::serveFile("www/404.html", NOT_FOUND);
         break;
     case UNDEFINED:
-        return ServerUtils::serveFile("src/www/404.html", NOT_FOUND);
+        return ServerUtils::serveFile("www/404.html", NOT_FOUND);
         break;
     default:
-        return ServerUtils::serveFile("src/www/404.html", NOT_FOUND);
+        return ServerUtils::serveFile("www/404.html", NOT_FOUND);
         break;
     }
 }

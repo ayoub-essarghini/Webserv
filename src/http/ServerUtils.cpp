@@ -33,6 +33,7 @@ ResponseInfos ServerUtils::serveFile(const string &filePath, int code)
 
 ResponseInfos ServerUtils::serverRootOrRedirect(RessourceInfo ressource)
 {
+    cout << "serverRootOrRedirect\n";
     if (ressource.url[ressource.url.length() - 1] != '/' && ressource.url != "/")
     {
         string redirectUrl = ressource.url + "/";
@@ -45,9 +46,9 @@ ResponseInfos ServerUtils::serverRootOrRedirect(RessourceInfo ressource)
 
         cout << "is indexed: " << ressource.autoindex << endl;
         if (ressource.autoindex)
-            indexPath = "src" + ressource.root + "/" + ressource.url + '/' + *inedxIter;
+            indexPath = ressource.root + "/" + ressource.url + '/' + *inedxIter;
         else
-            indexPath = "src/" + ressource.root + "/" + *inedxIter;
+            indexPath = ressource.root + "/" + *inedxIter;
         cout << "--------here-------\n";
         cout << indexPath << "\n";
         cout << "---------------\n";
@@ -58,8 +59,12 @@ ResponseInfos ServerUtils::serverRootOrRedirect(RessourceInfo ressource)
         }
     }
     if (ressource.autoindex)
-        return ServerUtils::generateDirectoryListing("src/"+ressource.root+ressource.url);
-    return ServerUtils::serveFile("src/www/404.html", NOT_FOUND); // should be 403
+    {
+        cout << "autoindexing\n";
+        return ServerUtils::generateDirectoryListing(ressource.root+ressource.url);
+    }
+
+    return ServerUtils::serveFile("www/404.html", NOT_FOUND); // should be 403
 }
 
 string ServerUtils::handleRedirect(const string &redirectUrl, int statusCode)
@@ -174,6 +179,14 @@ bool ServerUtils::isMethodAllowed(const std::string &method, const std::vector<s
         it++;
     }
     return false;
+}
+
+
+string ServerUtils::generateUniqueString()
+{
+    stringstream ss;
+    ss << hex << time(nullptr);
+    return ss.str();
 }
 
 ostream &operator<<(ostream &os, const ResponseInfos &response)

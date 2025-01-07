@@ -87,6 +87,16 @@ std::string Request::generateStatusMsg(const int code)
     return msg;
 }
 
+const std::string &Request::getHeader(const std::string &key) const
+{
+    return headers.at(key);
+}
+
+bool Request::hasHeader(const std::string &key) const
+{
+    return headers.find(key) != headers.end();
+}
+
 void Request::setBody(const std::string &body)
 {
     this->body = body;

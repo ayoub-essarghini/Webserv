@@ -23,6 +23,7 @@ public:
     static ResponseInfos ressourceToResponse(string ressource,int statusCode);
     static bool isMethodAllowed(const std::string &method, const std::vector<std::string> &allowMethods);
     static ResponseInfos serveFile(const std::string& filePath,int code);
+    static string generateUniqueString();
     static ResponseInfos generateDirectoryListing(const string &dirPath);
     static string handleRedirect(const string &redirectUrl, int statusCode);
 

@@ -53,8 +53,8 @@ void Config::parseServer()
 void Config::parseLocation()
 {
     Location l1;
-    l1.root = "/www";
-    // l1.allow_methods.push_back("GET");
+    l1.root = "www";
+    l1.allow_methods.push_back("GET");
     l1.allow_methods.push_back("POST");
 
     l1.autoindex = true;

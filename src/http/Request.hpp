@@ -22,6 +22,8 @@ public:
     const std::string &getDecodedPath() const;
     const std::string &getVersion() const;
     const std::map<std::string, std::string> &getHeaders() const;
+    const std::string &getHeader(const std::string &key) const;
+    bool hasHeader(const std::string &key) const;
     const std::string &getBody() const;
     const std::map<std::string, std::string> &getQueryParams() const;
     static std::string generateErrorPage(const int code);

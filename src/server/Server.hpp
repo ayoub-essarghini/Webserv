@@ -19,7 +19,7 @@
 #include <vector>
 #include <algorithm>
 
-#define MAX_EVENTS 10
+#define MAX_EVENTS 1024
 using namespace std;
 
 class Server
@@ -29,6 +29,32 @@ public:
     void start();
 
 private:
+    struct ChunkedUploadState
+    {
+        string partial_request;
+        bool headers_parsed;
+        size_t content_remaining;
+        string upload_path;
+        ofstream output_file;
+
+        ChunkedUploadState &operator=(const ChunkedUploadState &other)
+        {
+            if (this != &other)
+            {
+                this->partial_request = other.partial_request;
+                this->headers_parsed = other.headers_parsed;
+                this->content_remaining = other.content_remaining;
+                this->upload_path = other.upload_path;
+                if (this->output_file.is_open())
+                    this->output_file.close();
+                if (other.output_file.is_open())
+                    this->output_file.open(other.upload_path, ios::binary | ios::app);
+            }
+            return *this;
+        }
+
+    };
+    map<int, ChunkedUploadState> chunked_uploads;
     Request request;
     Socket server_socket;
     struct epoll_event ev;
@@ -40,6 +66,7 @@ private:
     ResponseInfos processRequest(const Request &request);
     ResponseInfos handleGet(const Request &request);
     ResponseInfos handlePost(const Request &request);
+    void processChunkedData(int client_sockfd, const string& data, int epoll_fd);
     ResponseInfos handleDelete(const Request &request);
     ResponseInfos serveRessourceOrFail(RessourceInfo ressource);
     bool matchLocation(Location &loc, const string url);

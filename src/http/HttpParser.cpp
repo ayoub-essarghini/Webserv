@@ -7,6 +7,8 @@ HttpParser::HttpParser() : state(REQUEST_LINE) {}
 
 Request HttpParser::parse(const string &data)
 {
+
+    
     string line;
     for (size_t i = 0; i < data.size(); ++i)
     {
