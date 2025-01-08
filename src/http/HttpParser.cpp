@@ -8,6 +8,7 @@ HttpParser::HttpParser() : state(REQUEST_LINE) {}
 Request HttpParser::parse(const string &data)
 {
 
+cout << "Parsing request" << endl;
     
     string line;
     for (size_t i = 0; i < data.size(); ++i)
@@ -22,6 +23,7 @@ Request HttpParser::parse(const string &data)
             }
             else
             {
+                cout << "400 here 1 " << line << endl;
                 throw BAD_REQUEST;
             }
         }
@@ -36,8 +38,8 @@ Request HttpParser::parse(const string &data)
         }
     }
 
-    if (!(line.empty() && line.find("\r\n\r\n") && state == BODY))
-        throw BAD_REQUEST;
+    // if (!(line.empty() && line.find("\r\n\r\n") && state == BODY))
+    //     throw BAD_REQUEST;
         
 
     if (!line.empty())
@@ -51,9 +53,11 @@ Request HttpParser::parse(const string &data)
     {
         parseBody(body);
     }
+    
     Request request;
     request.setMethod(method);
     request.setPath(uri);
+   
     request.setDecodedPath(uri);
     request.setVersion(version);
     request.setHeaders(headers);
@@ -123,7 +127,7 @@ void HttpParser::parseHeader(const string &line)
     string name = line.substr(0, separator);
     string value = line.substr(separator + 1);
 
-    trim(name);
+     trim(name);
     trim(value);
 
     headers[name] = value;
@@ -132,23 +136,25 @@ void HttpParser::parseHeader(const string &line)
 void HttpParser::parseBody(const string &body)
 {
 
-    if (headers.count("Content-Length") > 0)
-    {
-        int content_length = stoi(headers["Content-Length"]);
-        if (body.length() < content_length)
-        {
-            throw BAD_REQUEST;
-        }
-        query_params = parseParams(body);
-    }
-    else
-    {
+    // if (headers.count("Content-Length") > 0)
+    // {
+    //     int content_length = stoi(headers["Content-Length"]);
+    //     if (body.length() < content_length)
+    //     {
+    //         throw BAD_REQUEST;
+    //     }
+    //     query_params = parseParams(body);
+    // }
+    // else
+    // {
       
-        if (body.find("\r\n\n") != string::npos)
-        {
-            throw BAD_REQUEST;
-        }
-    }
+    //     // if (body.find("\r\n\n") != string::npos)
+    //     // {
+    //     //     throw BAD_REQUEST;
+    //     // }
+    // }
+
+    return;
 }
 
 void HttpParser::trim(string &str)
@@ -171,6 +177,7 @@ void HttpParser::validateHeaders()
 {
     if (!headers.count("Host"))
     {
+         cout << "400 here hosty "  << endl;
         throw BAD_REQUEST;
     }
 }

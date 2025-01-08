@@ -14,6 +14,7 @@ using namespace std;
 #define NOT_ALLOWED 405
 #define NOT_FOUND 404
 #define URI_TOO_LONG 414
+#define BAD_GATEWAY 502
 #define VERSION_NOT_SUPPORTED 505
 
 
