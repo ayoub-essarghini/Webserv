@@ -8,12 +8,13 @@ HttpParser::HttpParser() : state(REQUEST_LINE) {}
 Request HttpParser::parse(const string &data)
 {
 
-cout << "Parsing request" << endl;
+cout << "Parsing request" << data << endl;
     
     string line;
-    for (size_t i = 0; i < data.size(); ++i)
+    // size_t pos = data.find("\r\n\r\n");
+    for (size_t i = 0; i < data.size() ; ++i)
     {
-        if (data[i] == '\r')
+        if (data[i] == '\r' && state != BODY)
         {
             if (i + 1 < data.size() && data[i + 1] == '\n')
             {
@@ -27,7 +28,7 @@ cout << "Parsing request" << endl;
                 throw BAD_REQUEST;
             }
         }
-        else if (data[i] == '\n')
+        else if (data[i] == '\n' && state != BODY)
         {
             processLine(line);
             line.clear();
@@ -51,7 +52,7 @@ cout << "Parsing request" << endl;
 
     if (state == BODY && method == "POST")
     {
-        parseBody(body);
+        parseBody(this->body);
     }
     
     Request request;

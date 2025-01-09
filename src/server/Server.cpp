@@ -2,8 +2,11 @@
 
 using namespace std;
 
-Server::Server(int port, Config &config) : server_socket(port), server_config(config) {}
-
+Server::Server(int port, Config &config) : server_socket(port), server_config(config)
+{
+    // Initialize epoll events vector with a reasonable size
+    events.resize(MAX_EVENTS);
+}
 string Server::readRequest(int client_sockfd)
 {
     char buffer[1024] = {0};
@@ -25,228 +28,149 @@ void Server::start()
     cout << "Server is listening on port " << server_socket.getPort() << "..." << endl;
 
     // Create epoll instance
-    int epoll_fd = epoll_create1(0);
+    int epoll_fd = epoll_create(1); // Use epoll_create instead of epoll_create1 for C++98
     if (epoll_fd == -1)
     {
-        perror("epoll_create1");
+        perror("epoll_create");
         return;
     }
 
-    // Register server socket with epoll to monitor incoming connections
-
-    ev.events = EPOLLIN | EPOLLHUP | EPOLLERR; // Use edge-triggered mode for non-blocking I/O
+    // Register server socket with epoll
+    struct epoll_event ev;
+    ev.events = EPOLLIN; // Remove EPOLLHUP and EPOLLERR as they are implicit
     ev.data.fd = server_socket.getSocketFd();
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket.getSocketFd(), &ev) == -1)
     {
         perror("epoll_ctl");
+        close(epoll_fd);
         return;
     }
 
-    // Holds events for epoll_wait
-
     while (true)
     {
-        // Wait for events on the server socket and any client sockets
-        int num_events = epoll_wait(epoll_fd, events.data(), events.size(), -1); // Blocking call
+        int num_events = epoll_wait(epoll_fd, &events[0], events.size(), -1);
         if (num_events == -1)
         {
-            cerr << "epoll_wait" << endl;
+            // if (errno == EINTR)
+            //     continue; // Handle interrupted system call
+            cerr << "epoll_wait error" << endl;
             break;
         }
 
         for (int i = 0; i < num_events; ++i)
         {
-            int current_fd = events[i].data.fd;
-
-            if (current_fd == server_socket.getSocketFd())
-            {
-                // Server socket has incoming connections
-                int client_sockfd = server_socket.acceptConnection();
-                if (client_sockfd < 0)
-                {
-                   
-                    cerr << "Error accepting connection" << endl;
-                    continue;
-                }
-
-                // Set client socket to non-blocking
-                // fcntl(client_sockfd, F_SETFL, O_NONBLOCK);
-
-                // Register client socket with epoll to monitor for reading
-                ev.events = EPOLLIN ; // Use edge-triggered mode for non-blocking I/O
-                ev.data.fd = client_sockfd;
-                if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_sockfd, &ev) == -1)
-                {
-                    perror("epoll_ctl");
-                    close(client_sockfd);
-                }
-            }
-            else if (events[i].events & EPOLLIN)
-            {
-
-                // Client socket is ready to be read from
-                string req = readRequest(current_fd);
-
-                if (req.empty())
-                {
-                    // Handle read error, possibly with retry logic
-                    cerr << "Error reading from socket" << endl;
-                    close(current_fd);
-                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
-                }
-                
-
-                cout << "Request: " << req << endl;
-                //   struct epoll_event ev;
-                // ev.events = EPOLLIN | EPOLLET;
-                // ev.data.fd = current_fd;
-                // epoll_ctl(epoll_fd, EPOLL_CTL_MOD, current_fd, &ev);
-                // if (req.empty())
-                // {
-                //     // Handle read error, possibly with retry logic
-                //     cerr << "Error reading from socket" << endl;
-                //     close(current_fd);
-                //     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
-                // }
-                // else
-                // {
-
-                //     // Handle the request
-                    handleRequest(current_fd, req, epoll_fd);
-                // }
-            }
-
-            else if (events[i].events & EPOLLOUT)
-            {
-
-                // cout << "Client socket is ready to be written to" << endl;
-                // Get the stored response info for this client
-                if (responses_info.find(current_fd) != responses_info.end())
-                {
-                    Response response;
-                    ResponseInfos &response_info = responses_info[current_fd];
-
-                    // Set up response
-                    response.setStatus(response_info.status, response_info.statusMessage);
-                    response.addHeader("Content-Type", "text/html");
-                    if (response_info.status == REDIRECTED)
-                    {
-                        response.addHeader("Location", request.getDecodedPath() + "/");
-                    }
-
-                    response.setBody(response_info.body);
-
-                    string response_str = response.getResponse();
-                    ssize_t bytes_written = write(current_fd, response_str.c_str(), response_str.length());
-
-                    if (bytes_written == -1)
-                    {
-                        // Handle write error, possibly with retry logic
-                        cerr << "Error writing to socket" << endl;
-                        close(current_fd);
-                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
-                    }
-                    else if (bytes_written < response_str.length())
-                    {
-                        // If we haven't written all the data, wait for another EPOLLOUT
-                        responses_info[current_fd].body = response_str.substr(bytes_written);
-                        return;
-                    }
-
-                    // Clean up after writing the full response
-                    responses_info.erase(current_fd);
-                    close(current_fd);
-                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
-                }
-            }
-
-            else if (events[i].events & EPOLLERR)
-            {
-                // Handle errors for client sockets
-                std::cerr << "Error on socket: " << current_fd << std::endl;
-                close(current_fd);
-                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, NULL);
-            }
+            handleEpollEvent(epoll_fd, events[i]);
         }
     }
 
     close(epoll_fd);
 }
 
-// void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
-// {
-//     try
-//     {
-//         if (chunked_uploads.find(client_sockfd) == chunked_uploads.end())
-//         {
-//             // New request
-//             HttpParser parser;
-//             // cout << i << ": " <<  req << endl;
-//             request = parser.parse(req);
+void Server::handleEpollEvent(int epoll_fd, const epoll_event &event)
+{
+    if (event.data.fd == server_socket.getSocketFd())
+    {
+        // Accept new connection
+        int client_fd = server_socket.acceptConnection();
+        if (client_fd < 0)
+            return;
 
-//                    if (request.getMethod() == "POST" &&
-//                 request.hasHeader("Transfer-Encoding") &&
-//                 request.getHeader("Transfer-Encoding") == "chunked")
-//             {
-//                 cout << "Starting chunked upload" << endl;
-//                 // Initialize chunked upload state
-//                 ChunkedUploadState state;
-//                 state.headers_parsed = true;
-//                 state.content_remaining = 0;
-//                 state.upload_path = "uploads/" + ServerUtils::generateUniqueString();
-//                 state.output_file.open(state.upload_path, std::ios::binary);
+        // Add to epoll with edge-triggered mode
+        struct epoll_event ev;
+        ev.events = EPOLLIN;
+        ev.data.fd = client_fd;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev) < 0)
+        {
+            close(client_fd);
+            return;
+        }
+    }
+    else
+    {
+        // Handle client socket
+        if (event.events & EPOLLIN)
+        {
+            // Read all available data
+            string request_data;
+            char buffer[4096];
 
-//                 chunked_uploads[client_sockfd] = state;
+            ssize_t bytes_read = read(event.data.fd, buffer, sizeof(buffer));
+            if (bytes_read < 0)
+            {
+                // if (errno == EAGAIN || errno == EWOULDBLOCK)
+                // {
+                //     break; // No more data
+                // }
+                cleanupConnection(epoll_fd, event.data.fd);
+                return;
+            }
+            if (bytes_read == 0)
+            {
+                cleanupConnection(epoll_fd, event.data.fd);
+                return;
+            }
+            request_data.append(buffer, bytes_read);
 
-//                 // Keep monitoring for more data
-//                 struct epoll_event ev;
-//                 ev.events = EPOLLIN | EPOLLET;
-//                 ev.data.fd = client_sockfd;
-//                 epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev);
-//             }
-//             else
-//             {
+            if (!request_data.empty())
+            {
+                handleRequest(event.data.fd, request_data, epoll_fd);
+            }
+        }
 
-//                 cout << "Processing non-chunked data" << endl;
-//                 // Handle non-chunked request as before
-//                 responses_info[client_sockfd] = processRequest(request);
+        if (event.events & EPOLLOUT)
+        {
+            handleWriteEvent(epoll_fd, event.data.fd);
+        }
+    }
+}
 
-//                 struct epoll_event ev;
-//                 ev.events = EPOLLOUT | EPOLLET;
-//                 ev.data.fd = client_sockfd;
-//                 epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev);
-//             }
-//         }
-//         else
-//         {
-//             cout << "Processing chunked data" << endl;
-//             // Continue processing chunked upload
-//             processChunkedData(client_sockfd, req, epoll_fd);
-//         }
-//     }
-//     catch (int code)
-//     {
+void Server::handleWriteEvent(int epoll_fd, int current_fd)
+{
+    if (responses_info.find(current_fd) == responses_info.end())
+    {
+        cleanupConnection(epoll_fd, current_fd);
+        return;
+    }
 
-//         cout << "Error code: " << code << endl;
+    Response response;
+    ResponseInfos &response_info = responses_info[current_fd];
 
-//         Response response;
-//         response.setStatus(code, Request::generateStatusMsg(code));
-//         response.addHeader(to_string(code), Request::generateStatusMsg(code));
-//         response.addHeader("Content-Type", "text/html");
-//         response.setBody(Request::generateErrorPage(code));
+    // Set up response
+    response.setStatus(response_info.status, response_info.statusMessage);
+    response.addHeader("Content-Type", "text/html");
+    if (response_info.status == REDIRECTED)
+    {
+        response.addHeader("Location", request.getDecodedPath() + "/");
+    }
+    response.setBody(response_info.body);
 
-//         responses_info[client_sockfd] = ServerUtils::ressourceToResponse(Request::generateErrorPage(code), code);
+    string response_str = response.getResponse();
+    ssize_t bytes_written = write(current_fd, response_str.c_str(), response_str.length());
 
-//         struct epoll_event ev;
-//         ev.events = EPOLLOUT | EPOLLET;
-//         ev.data.fd = client_sockfd;
-//         epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev);
-//     }
-//     catch (exception &e)
-//     {
-//         cerr << e.what() << endl;
-//     }
-// }
+    if (bytes_written == -1)
+    {
+
+        return;
+    }
+
+    if (static_cast<size_t>(bytes_written) < response_str.length())
+    {
+        // Update the remaining response data
+        responses_info[current_fd].body = response_str.substr(bytes_written);
+        return;
+    }
+
+    // Complete response sent, clean up
+    cleanupConnection(epoll_fd, current_fd);
+}
+
+void Server::cleanupConnection(int epoll_fd, int fd)
+{
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+    close(fd);
+    responses_info.erase(fd);
+    chunked_uploads.erase(fd);
+}
 
 void Server::processChunkedData(int client_sockfd, const string &data, int epoll_fd)
 {
@@ -255,98 +179,155 @@ void Server::processChunkedData(int client_sockfd, const string &data, int epoll
 
     while (true)
     {
-        // Find chunk size line
+        // 1. Check for chunk size with proper hex validation
         size_t pos = state.partial_request.find("\r\n");
         if (pos == string::npos)
+        {
+            cout << "Need more data" << endl;
             return; // Need more data
+        }
 
-        // Parse chunk size
+        // 2. Parse chunk size with strict hex validation
         string chunk_size_str = state.partial_request.substr(0, pos);
-        size_t chunk_size;
-        std::stringstream ss;
-        ss << std::hex << chunk_size_str;
-        ss >> chunk_size;
+        size_t chunk_size = 0;
+        try
+        {
+            chunk_size = std::stoul(chunk_size_str, nullptr, 16);
+        }
+        catch (...)
+        {
+            throw BAD_REQUEST;
+        }
 
-        // Check if this is the last chunk
+        // 3. Verify we have the complete chunk
+        size_t chunk_header_size = pos + 2;                           // includes \r\n
+        size_t chunk_total_size = chunk_header_size + chunk_size + 2; // +2 for trailing \r\n
+
+        if (state.partial_request.length() < chunk_total_size)
+        {
+            return; // Need more data
+        }
+
+        // 4. Process chunk
         if (chunk_size == 0)
         {
-            // Upload complete
-            state.output_file.close();
-            chunked_uploads.erase(client_sockfd);
-
-            // Send success response
-            responses_info[client_sockfd] = ServerUtils::ressourceToResponse("", CREATED);
-
-            struct epoll_event ev;
-            ev.events = EPOLLOUT;
-            ev.data.fd = client_sockfd;
-            epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev);
-            return;
+            // Last chunk
+            if (state.partial_request.substr(chunk_header_size).compare(0, 2, "\r\n") == 0)
+            {
+                // Valid end
+                state.output_file.close();
+                chunked_uploads.erase(client_sockfd);
+                responses_info[client_sockfd] = ServerUtils::ressourceToResponse("Upload Complete", CREATED);
+                modifyEpollEvent(epoll_fd, client_sockfd, EPOLLOUT);
+                return;
+            }
         }
 
-        // Check if we have the full chunk
-        if (state.partial_request.length() < pos + 2 + chunk_size + 2)
-        {
-            return; // Need more data
-        }
+        // Write chunk data
+        const char *chunk_data = state.partial_request.data() + chunk_header_size;
+        state.output_file.write(chunk_data, chunk_size);
 
-        // Write chunk to file
-        state.output_file.write(
-            state.partial_request.data() + pos + 2, // Skip size line and CRLF
-            chunk_size);
-
-        // Remove processed chunk from buffer
-        state.partial_request = state.partial_request.substr(pos + 2 + chunk_size + 2);
+        // Remove processed chunk
+        state.partial_request = state.partial_request.substr(chunk_total_size);
     }
 }
 
+// Helper function to modify epoll events
+void Server::modifyEpollEvent(int epoll_fd, int fd, uint32_t events)
+{
+    struct epoll_event ev;
+    ev.events = events;
+    ev.data.fd = fd;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev) == -1)
+    {
+        perror("epoll_ctl mod");
+        throw INTERNAL_SERVER_ERROR;
+    }
+}
 void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
 {
+
     try
     {
-        HttpParser parser;
-        request = parser.parse(req);
-
-        // Store response info for this client socket
-        responses_info[client_sockfd] = processRequest(request);
-
-        // Modify the socket to monitor for write events (EPOLLOUT)
-
-        ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
-        ev.data.fd = client_sockfd;
-
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
+        if (chunked_uploads.find(client_sockfd) == chunked_uploads.end())
         {
-            perror("epoll_ctl");
-            return;
+            cout << "New request coming " << endl;
+
+            HttpParser parser;
+            request = parser.parse(req);
+
+
+            cout << "\n--------------body -----------\n" << request.getBody() << endl;
+
+            if (request.getMethod() == "POST" &&
+                request.hasHeader("Transfer-Encoding") &&
+                request.getHeader("Transfer-Encoding") == "chunked")
+            {
+
+                cout << "Starting chunked upload" << endl;
+
+                // Initialize chunked upload state
+                ChunkedUploadState state;
+                state.headers_parsed = true;
+                state.content_remaining = 0;
+                state.upload_path = "uploads/" + ServerUtils::generateUniqueString();
+                state.output_file.open(state.upload_path.c_str(), std::ios::binary);
+                cout << "FILE OPENED " << endl;
+
+                if (!state.output_file.is_open())
+                {
+                    cerr << "Failed to open output file" << endl;
+                    throw INTERNAL_SERVER_ERROR;
+                }
+
+                chunked_uploads[client_sockfd] = state;
+                     cout << "After file opened " << endl;
+                processChunkedData(client_sockfd, request.getBody(), epoll_fd);
+                // modifyEpollEvent(epoll_fd, client_sockfd, EPOLLIN);
+            }
+            else
+            {
+                cout << "Processing non-chunked data" << endl;
+                responses_info[client_sockfd] = processRequest(request);
+                modifyEpollEvent(epoll_fd, client_sockfd, EPOLLOUT);
+            }
+        }
+        else
+        {
+            cout << "Processing chunked data" << req << endl;
+            processChunkedData(client_sockfd, req, epoll_fd);
         }
     }
-    catch (int &code)
+    catch (int code)
     {
-        // If an error occurs, prepare an error response
-        Response response;
-        response.setStatus(code, Request::generateStatusMsg(code));
-        response.addHeader(to_string(code), Request::generateStatusMsg(code));
-        response.addHeader("Content-Type", "text/html");
-        response.setBody(Request::generateErrorPage(code));
+        cout << "Error code: " << code << endl;
 
-        // Store response info for this client socket
-        responses_info[client_sockfd] = ServerUtils::ressourceToResponse(Request::generateErrorPage(code), code);
-
-        // Modify the socket to monitor for write events (EPOLLOUT)
-
-        ev.events = EPOLLOUT | EPOLLET; // Edge-triggered output
-        ev.data.fd = client_sockfd;
-
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sockfd, &ev) == -1)
+        // Clean up any partial uploads
+        map<int, ChunkedUploadState>::iterator it = chunked_uploads.find(client_sockfd);
+        if (it != chunked_uploads.end())
         {
-            perror("epoll_ctl");
-            return;
+            if (it->second.output_file.is_open())
+            {
+                it->second.output_file.close();
+            }
+            remove(it->second.upload_path.c_str());
+            chunked_uploads.erase(it);
         }
+
+        responses_info[client_sockfd] = ServerUtils::ressourceToResponse(
+            Request::generateErrorPage(code),
+            code);
+        modifyEpollEvent(epoll_fd, client_sockfd, EPOLLOUT);
     }
     catch (exception &e)
     {
-        cerr << e.what() << endl;
+        cerr << "Unexpected error: " << e.what() << endl;
+
+        // Handle unexpected errors similarly to known error codes
+        responses_info[client_sockfd] = ServerUtils::ressourceToResponse(
+            Request::generateErrorPage(INTERNAL_SERVER_ERROR),
+            INTERNAL_SERVER_ERROR);
+        modifyEpollEvent(epoll_fd, client_sockfd, EPOLLOUT);
     }
 }
 

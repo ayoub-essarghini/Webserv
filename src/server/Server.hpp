@@ -68,6 +68,11 @@ private:
     ResponseInfos handlePost(const Request &request);
     void processChunkedData(int client_sockfd, const string& data, int epoll_fd);
     ResponseInfos handleDelete(const Request &request);
+    void modifyEpollEvent(int epoll_fd, int fd, uint32_t events);
+    void handleEpollEvent(int epoll_fd, const epoll_event& event);
+    void handleWriteEvent(int epoll_fd, int current_fd);
+    void cleanupConnection(int epoll_fd, int fd);
+
     ResponseInfos serveRessourceOrFail(RessourceInfo ressource);
     bool matchLocation(Location &loc, const string url);
 
