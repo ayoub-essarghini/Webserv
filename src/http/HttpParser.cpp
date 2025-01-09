@@ -62,6 +62,7 @@ cout << "Parsing request" << data << endl;
     request.setDecodedPath(uri);
     request.setVersion(version);
     request.setHeaders(headers);
+    request.setQueryParams(query_params);
     request.setBody(body);
     return request;
 }

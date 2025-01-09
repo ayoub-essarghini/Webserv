@@ -6,6 +6,7 @@
 #include "../http/ServerUtils.hpp"
 #include "../http/Response.hpp"
 #include "../config/Config.hpp"
+#include "../http/Cgi.hpp"
 #include <string>
 #include <map>
 #include <iostream>

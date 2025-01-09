@@ -1,5 +1,6 @@
 #include "Server.hpp"
 
+
 using namespace std;
 
 Server::Server(int port, Config &config) : server_socket(port), server_config(config)
@@ -52,6 +53,7 @@ void Server::start()
         if (num_events == -1)
         {
             // if (errno == EINTR)
+            
             //     continue; // Handle interrupted system call
             cerr << "epoll_wait error" << endl;
             break;
@@ -358,6 +360,32 @@ ResponseInfos Server::processRequest(const Request &request)
 ResponseInfos Server::handleGet(const Request &request)
 {
     string url = request.getDecodedPath();
+
+    if (url.find_last_of(".php") != string::npos)
+    {
+        cout << "Im in cgi " << endl;
+        cout << request << endl;
+        try
+        {
+            CGI cgi;
+            ResponseInfos response;
+            response = cgi.execute(request, url);
+
+            return response;
+        }
+        catch(CGIException &e)
+        {
+            std::cerr << "CGI: ERROR : " << e.what() << '\n';
+        }
+        catch(exception &e)
+        {
+            std::cerr << "CGI: ERROR : " << e.what() << '\n';
+        }
+    
+        // return ServerUtils::ressourceToResponse(ServerUtils::generateErrorPage(NOT_ALLOWED), NOT_ALLOWED);
+    }
+
+    cout << "after handling cgi " << endl;
     Location bestMatch;
     RessourceInfo ressource;
     if (!matchLocation(bestMatch, url))

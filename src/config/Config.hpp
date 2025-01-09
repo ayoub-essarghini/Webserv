@@ -8,6 +8,8 @@
 #include <iostream>
 #include "../utils/MyType.hpp"
 
+using namespace std;
+
 class Config
 {
 public:

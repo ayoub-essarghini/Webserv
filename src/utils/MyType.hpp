@@ -2,7 +2,6 @@
 #include <iostream>
 #include <vector>
 #include <map>
-
 using namespace std;
 
 #define BAD_REQUEST 400
@@ -16,6 +15,15 @@ using namespace std;
 #define URI_TOO_LONG 414
 #define BAD_GATEWAY 502
 #define VERSION_NOT_SUPPORTED 505
+
+#define MSG_BAD_REQUEST "Bad Request"
+#define MSG_OK "OK"
+#define MSG_CREATED "Created"
+#define MSG_INTERNAL_SERVER_ERROR "Internal Server Error"
+#define MSG_FORBIDDEN "Forbidden"
+#define MSG_REDIRECTED "Redirected"
+#define MSG_NOT_ALLOWED "Method Not Allowed"
+#define MSG_NOT_FOUND "Not Found"
 
 
 #define GET "GET"
@@ -58,13 +66,32 @@ struct RessourceInfo
     bool autoindex;
 };
 
+// struct ResponseInfos
+// {
+//     int status;
+//     string statusMessage;
+//     map<string,string> headers;
+//     string location;
+//     string body;
+
+//     ResponseInfos() : status(OK), statusMessage("OK"),body("") {}
+// };
+
+
 struct ResponseInfos
 {
     int status;
     string statusMessage;
-    map<string,string> headers;
-    string location;
+    map<string, string> headers;
     string body;
 
-    ResponseInfos() : status(OK), statusMessage("OK"),body("") {}
+    ResponseInfos() : status(OK), statusMessage(MSG_OK), body("") {}
+    ResponseInfos(int s, const string &sm, const string &b) : status(s), statusMessage(sm), body(b) {}
+    void setHeaders(const map<string, string> &h) { headers = h; }
+    int getStatus() const { return status; }
+    string getStatusMessage() const { return statusMessage; }
+    const map<string, string> &getHeaders() const { return headers; }
+    string getBody() const { return body; }
+    void setStatus(int s) { status = s; }
+    void setStatusMessage(const string &sm) { statusMessage = sm; }
 };
