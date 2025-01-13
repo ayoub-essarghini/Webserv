@@ -51,8 +51,6 @@ void Server::start()
         int num_events = epoll_wait(epoll_fd, &events[0], events.size(), -1);
         if (num_events == -1)
         {
-            // if (errno == EINTR)
-            //     continue; // Handle interrupted system call
             cerr << "epoll_wait error" << endl;
             break;
         }
@@ -97,10 +95,6 @@ void Server::handleEpollEvent(int epoll_fd, const epoll_event &event)
             ssize_t bytes_read = read(event.data.fd, buffer, sizeof(buffer));
             if (bytes_read < 0)
             {
-                // if (errno == EAGAIN || errno == EWOULDBLOCK)
-                // {
-                //     break; // No more data
-                // }
                 cleanupConnection(epoll_fd, event.data.fd);
                 return;
             }
@@ -139,9 +133,7 @@ void Server::handleWriteEvent(int epoll_fd, int current_fd)
     response.setStatus(response_info.status, response_info.statusMessage);
     response.addHeader("Content-Type", "text/html");
     if (response_info.status == REDIRECTED)
-    {
         response.addHeader("Location", request.getDecodedPath() + "/");
-    }
     response.setBody(response_info.body);
 
     string response_str = response.getResponse();
@@ -232,7 +224,6 @@ void Server::processChunkedData(int client_sockfd, const string &data, int epoll
     }
 }
 
-// Helper function to modify epoll events
 void Server::modifyEpollEvent(int epoll_fd, int fd, uint32_t events)
 {
     struct epoll_event ev;
@@ -256,8 +247,8 @@ void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
             HttpParser parser;
             request = parser.parse(req);
 
-
-            cout << "\n--------------body -----------\n" << request.getBody() << endl;
+            cout << "\n--------------body -----------\n"
+                 << request.getBody() << endl;
 
             if (request.getMethod() == "POST" &&
                 request.hasHeader("Transfer-Encoding") &&
@@ -281,7 +272,7 @@ void Server::handleRequest(int client_sockfd, string req, int epoll_fd)
                 }
 
                 chunked_uploads[client_sockfd] = state;
-                     cout << "After file opened " << endl;
+                cout << "After file opened " << endl;
                 processChunkedData(client_sockfd, request.getBody(), epoll_fd);
                 // modifyEpollEvent(epoll_fd, client_sockfd, EPOLLIN);
             }
@@ -487,11 +478,11 @@ ResponseInfos Server::serveRessourceOrFail(RessourceInfo ressource)
 
 ostream &operator<<(ostream &os, const Request &request)
 {
-    os << "-------------Method:---------\n " << request.getMethod() << endl;
-    os << "-------------URI:----------\n"
-       << request.getPath() << endl;
-    os << "-------------Version:---------\n " << request.getVersion() << endl;
-    os << "-------------Headers:----------\n"
+    os << "------------- Method: ---------\n " << request.getMethod() << endl;
+    os << "------------- URI: ----------\n"
+       << request.getPath() << endl; 
+    os << "------------- Version: ---------\n " << request.getVersion() << endl;
+    os << "------------- Headers: ----------\n"
        << endl;
     for (const auto &header : request.getHeaders())
     {

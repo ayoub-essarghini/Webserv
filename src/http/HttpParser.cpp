@@ -49,11 +49,6 @@ cout << "Parsing request" << data << endl;
     }
 
     validateHeaders();
-
-    if (state == BODY && method == "POST")
-    {
-        parseBody(this->body);
-    }
     
     Request request;
     request.setMethod(method);
@@ -65,6 +60,7 @@ cout << "Parsing request" << data << endl;
     request.setBody(body);
     return request;
 }
+
 void HttpParser::processLine(const string &line)
 {
     switch (state)
@@ -79,6 +75,11 @@ void HttpParser::processLine(const string &line)
         body += line;
         break;
     }
+}
+
+bool HttpParser::isChunkedData()
+{
+    return (headers.count("Transfer-Encoding") > 0 && headers["Transfer-Encoding"] == "chunked");
 }
 
 void HttpParser::parseRequestLine(const string &line)

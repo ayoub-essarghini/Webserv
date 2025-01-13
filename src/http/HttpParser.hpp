@@ -23,6 +23,7 @@ private:
     void validateMethod(const string& method);
     bool isHexDigit(char c);
     bool isBadUri(const string& uri);
+    bool isChunkedData();
     char hexToChar(char high, char low);
     bool isBadUriTraversal(const string& uri);
     map<string, string> parseParams(const string& query);
