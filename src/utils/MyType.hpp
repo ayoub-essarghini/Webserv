@@ -88,6 +88,10 @@ struct ResponseInfos
     ResponseInfos() : status(OK), statusMessage(MSG_OK), body("") {}
     ResponseInfos(int s, const string &sm, const string &b) : status(s), statusMessage(sm), body(b) {}
     void setHeaders(const map<string, string> &h) { headers = h; }
+    void addHeader(const string &key, const string &value) {
+        headers[key] = value;
+    }
+    void setBody(const string &b) { body = b; }
     int getStatus() const { return status; }
     string getStatusMessage() const { return statusMessage; }
     const map<string, string> &getHeaders() const { return headers; }

@@ -361,6 +361,7 @@ ResponseInfos Server::handleGet(const Request &request)
 {
     string url = request.getDecodedPath();
 
+    cout << "handle Get" << endl;
     if (url.find_last_of(".php") != string::npos)
     {
         cout << "Im in cgi " << endl;
@@ -369,8 +370,9 @@ ResponseInfos Server::handleGet(const Request &request)
         {
             CGI cgi;
             ResponseInfos response;
+            cout << "test dsgsdgsdgsdgsdgdg : "<< url << endl;
             response = cgi.execute(request, url);
-
+            response = cgi.parseOutput(cgi.getOutputPipe());
             return response;
         }
         catch(CGIException &e)

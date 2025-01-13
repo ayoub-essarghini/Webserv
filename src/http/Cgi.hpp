@@ -6,7 +6,7 @@
 /*   By: mbentahi <mbentahi@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/28 11:26:31 by mbentahi          #+#    #+#             */
-/*   Updated: 2025/01/09 23:17:55 by mbentahi         ###   ########.fr       */
+/*   Updated: 2025/01/13 19:52:55 by mbentahi         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -49,6 +49,7 @@ public:
 	void handleChunkedTransfer();
 	void processUpload(const string &uploadPath);
 	void setupEnvironment(const Request &req);
+	ResponseInfos parseOutput(int outputPipe);
 	CGI(const string &workDir, const string &upDir);
 	CGI();
 	~CGI();
@@ -56,6 +57,8 @@ public:
 	ResponseInfos execute(const Request request, const string &cgi);
 	string getResponse();
 	map<string, string> createHeader(string output);
+	int getOutputPipe() { return outputPipe[0]; }
+	int getInputPipe() { return inputPipe[1]; }
 };
 
 class CGIException : public exception

@@ -6,11 +6,12 @@
 /*   By: mbentahi <mbentahi@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/28 13:36:03 by mbentahi          #+#    #+#             */
-/*   Updated: 2025/01/09 23:51:17 by mbentahi         ###   ########.fr       */
+/*   Updated: 2025/01/13 19:46:19 by mbentahi         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Cgi.hpp"
+#include <algorithm>
 
 CGI::CGI() : workingDir(""), uploadDir(""), childPid(0)
 {
@@ -121,57 +122,50 @@ map<string, string> CGI::createHeader(string output)
 // }
 void CGI::setupEnvironment(const Request &req)
 {
-	cout << "Setting up environment variables for CGI script" << endl;
+    cout << "Setting up environment variables for CGI script" << endl;
+    
+    // Basic CGI variables
+    env["REQUEST_METHOD"] = req.getMethod();
+    env["SERVER_PROTOCOL"] = req.getVersion();
+    env["CONTENT_LENGTH"] = "0";  // For GET requests
+    
+    // Parse query string from path
+    size_t questionMarkPos = req.getPath().find('?');
+    if (questionMarkPos != string::npos) {
+        env["SCRIPT_NAME"] = req.getPath().substr(0, questionMarkPos);
+        env["QUERY_STRING"] = req.getPath().substr(questionMarkPos + 1);
+    } else {
+        env["SCRIPT_NAME"] = req.getPath();
+        env["QUERY_STRING"] = "";
+    }
+    env["QUERY_STRING"] = "param1=value1&param2=value2";
+    // Add path information
+    env["PATH_INFO"] = env["SCRIPT_NAME"];
+    env["PATH_TRANSLATED"] = "/home/sultane/Desktop/Webserv/www/test.php";  // You'll need to implement getServerRoot()
+    env["SCRIPT_FILENAME"] = env["PATH_TRANSLATED"];
+    
+    // Add redirect status for PHP-CGI
+    env["REDIRECT_STATUS"] = "200";
+    
+    // Process headers
+    map<string, string>::const_iterator it1 = req.getHeaders().begin();
+    if (it1 != req.getHeaders().end()) {
+        while (it1 != req.getHeaders().end()) {
+            string headerName = it1->first;
+            transform(headerName.begin(), headerName.end(), headerName.begin(), ::toupper);
+            if (headerName != "CONTENT_LENGTH" && headerName != "CONTENT_TYPE") {
+                headerName = "HTTP_" + headerName;
+            }
+            env[headerName] = it1->second;
+            it1++;
+        }
+    }
 
- // Clear any existing environment variables
-	
-	env["REQUEST_METHOD"] = req.getMethod();
-	cout << "after request method" << endl;
-	env["SCRIPT_NAME"] = req.getPath();
-	cout << "after script name" << endl;
-	env["SERVER_PROTOCOL"] = req.getVersion();
-	cout << "after server protocol" << endl;
-	env["CONTENT_LENGTH"] = to_string(req.getBody().size());
-	cout << "after content length" << endl;
-	// env["CONTENT_TYPE"] = req.getHeader("Content-Type");
-	// cout << "after content type" << endl;
-	env["QUERY_STRING"] = req.getPath();
-	cout << "after query string" << endl;
-	map<string, string>::const_iterator it1 = req.getHeaders().begin();
-
-	if (it1 == req.getHeaders().end())
-	{
-		cerr << "Error: No headers found in request" << endl;
-	}
-	else
-	{
-		while (it1 != req.getHeaders().end())
-		{
-			env[ it1->first] = it1->second;
-			it1++;
-		}
-	}
-	map<string, string>::const_iterator it2 = req.getQueryParams().begin();
-	
-	if (it2 == req.getQueryParams().end())
-	{
-		cerr << "Error: No query parameters found in request" << endl;
-	}
-	else
-	{
-		while (it2 != req.getQueryParams().end())
-		{
-			env[it2->first] = it2->second;
-			it2++;
-		}
-	}
-
-	cout << "Environment variables set" << endl;
-	
-	// for (map<string, string>::const_iterator it = req.getQueryParams().begin(); it != req.getQueryParams().end(); it++)
-	// {
-	// 	env[it->first] = it->second;
-	// }
+    // Debug output
+    cout << "CGI Environment Variables:" << endl;
+    for (const auto& pair : env) {
+        cout << pair.first << "=" << pair.second << endl;
+    }
 }
 
 // ResponseInfos CGI::execute(const string &script, const string &cgi, const string &requestBody)
@@ -280,7 +274,7 @@ ResponseInfos CGI::execute(const Request request, const string &cgi)
 		}
 		envp[envStrings.size()] = NULL;
 
-		execve(argv[0], argv, envp);
+		execve("/usr/bin/php-cgi", argv, envp);
 
 		// Clean up if execve fails
 		for (size_t i = 0; envp[i] != NULL; i++)
@@ -297,11 +291,14 @@ ResponseInfos CGI::execute(const Request request, const string &cgi)
 		close(inputPipe[0]);
 		close(outputPipe[1]);
 
-		// if (!requestBody.empty())
-		// {
-		//     // Format the POST data properly
-		//     write(inputPipe[1], formattedBody.c_str(), formattedBody.length());
-		// }
+		if (!request.getBody().empty())
+		{
+			ssize_t bytesWritten = write(inputPipe[1], request.getBody().c_str(), request.getBody().size());
+			if (bytesWritten == -1)
+			{
+				throw CGIException("Error: CGI: Write failed");
+			}
+		}
 
 		close(inputPipe[1]);
 
@@ -366,6 +363,69 @@ string CGI::getResponse()
 	}
 	return response;
 }
+
+ResponseInfos CGI::parseOutput(int outputPipe)
+{
+    ResponseInfos response;
+    string output;
+    char buffer[1024];
+    ssize_t bytesRead;
+    
+    // Read all output from pipe
+    while ((bytesRead = read(outputPipe, buffer, sizeof(buffer) - 1)) > 0)
+    {
+        buffer[bytesRead] = '\0';
+        output += buffer;
+    }
+
+    // Find the separator between headers and body (double newline)
+    size_t headerEnd = output.find("\r\n\r\n");
+    if (headerEnd == string::npos)
+        headerEnd = output.find("\n\n");
+
+    if (headerEnd != string::npos)
+    {
+        // Extract headers
+        string headers = output.substr(0, headerEnd);
+        string body = output.substr(headerEnd + (output[headerEnd] == '\r' ? 4 : 2));
+
+        // Parse headers
+        size_t pos = 0;
+        size_t nextPos;
+        while ((nextPos = headers.find('\n', pos)) != string::npos)
+        {
+            string line = headers.substr(pos, nextPos - pos);
+            if (!line.empty() && line[line.length() - 1] == '\r')
+                line = line.substr(0, line.length() - 1);
+            
+            // Find the colon in the header
+            size_t colon = line.find(':');
+            if (colon != string::npos)
+            {
+                string key = line.substr(0, colon);
+                string value = line.substr(colon + 1);
+                
+                // Trim whitespace
+                while (!value.empty() && isspace(value[0]))
+                    value = value.substr(1);
+                
+                response.addHeader(key, value);
+            }
+            pos = nextPos + 1;
+        }
+
+        // Set the body
+        response.setBody(body);
+    }
+    else
+    {
+        // No headers found, treat everything as body
+        response.setBody(output);
+    }
+
+    return response;
+}
+
 
 // // Main function to test CGI class
 // int main()
